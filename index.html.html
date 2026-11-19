@@ -1,0 +1,3095 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>USS Flow Audit — M.S USS-ROOM</title>
+
+  <!-- Inter & JetBrains Mono Fonts (falls back gracefully to system fonts when offline) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    if (window.tailwind) {
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+              mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace']
+            },
+            boxShadow: {
+              card: '0 1px 3px 0 rgba(15, 23, 42, 0.06), 0 1px 2px -1px rgba(15, 23, 42, 0.04)',
+              action: '0 10px 22px -6px rgba(15, 23, 42, 0.18)'
+            }
+          }
+        }
+      };
+    }
+  </script>
+
+  <style>
+    /* Clinical UI Polish, Mobile Touch Targets & Print A4 Layout */
+    :root {
+      color-scheme: light;
+    }
+
+    html, body {
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior-y: contain;
+      overflow-x: hidden;
+    }
+
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .tap-btn {
+      transition: transform 0.08s ease, box-shadow 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+      touch-action: manipulation;
+    }
+    .tap-btn:active {
+      transform: scale(0.985);
+    }
+
+    /* Subtle scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+
+    /* Live sync pulsing animation */
+    @keyframes statusPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.45; transform: scale(0.9); }
+    }
+    .animate-status-pulse {
+      animation: statusPulse 1.9s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    /* Formal A4 Print / Save PDF Styling */
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 12mm;
+      }
+      body {
+        background: #ffffff !important;
+        color: #0f172a !important;
+        font-size: 10.5px !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+      .print-only {
+        display: block !important;
+      }
+      #view-live, #view-log {
+        display: none !important;
+      }
+      #view-audit {
+        display: block !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+      .print-card {
+        box-shadow: none !important;
+        border: 1px solid #cbd5e1 !important;
+        break-inside: avoid;
+        page-break-inside: avoid;
+        margin-bottom: 10px !important;
+      }
+      .print-table-wrap {
+        overflow: visible !important;
+      }
+      table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        font-size: 9.5px !important;
+      }
+      th, td {
+        padding: 4px 6px !important;
+        border-bottom: 1px solid #e2e8f0 !important;
+      }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col antialiased selection:bg-teal-100">
+
+  <!-- =====================================================================
+       TOP HEADER BAR
+       ===================================================================== -->
+  <header class="no-print sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2">
+      <!-- Brand Identity -->
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 text-white flex items-center justify-center shadow-sm shrink-0">
+          <!-- Ultrasound Pulse Icon -->
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 12h4l2.5-6 4 12 2.5-6H21" />
+          </svg>
+        </div>
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <h1 class="text-sm sm:text-base font-extrabold tracking-tight text-slate-900 truncate">USS Flow Audit</h1>
+            <span id="header-today-badge" class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600"></span>
+          </div>
+          <p class="text-[11px] text-slate-500 hidden sm:block leading-tight">Ultrasound Time-Motion &amp; GEM Reporting Tracker</p>
+        </div>
+      </div>
+
+      <!-- Desktop Navigation Tabs -->
+      <nav class="hidden md:flex items-center bg-slate-100 p-1 rounded-xl gap-1" aria-label="Main navigation">
+        <button data-tab="live" class="nav-tab-btn min-h-[38px] px-4 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.1" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7v5l3 2"/></svg>
+          Live Tracker
+          <span id="nav-pending-badge-desktop" class="hidden ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500 text-white leading-none">0</span>
+        </button>
+        <button data-tab="log" class="nav-tab-btn min-h-[38px] px-4 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.1" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          Patient Log
+        </button>
+        <button data-tab="audit" class="nav-tab-btn min-h-[38px] px-4 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.1" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          Audit Report
+        </button>
+      </nav>
+
+      <!-- Live Sync Status & Room Code Badge -->
+      <button id="btn-open-sync-modal" class="tap-btn min-h-[44px] flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition shrink-0" title="Click to view Firestore sync status or change Room Code">
+        <span id="sync-status-dot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-status-pulse shrink-0"></span>
+        <div class="text-left leading-tight max-w-[165px] sm:max-w-[230px]">
+          <div class="flex items-center gap-1">
+            <span id="sync-badge-text" class="text-xs font-bold text-slate-800 truncate">Connecting...</span>
+            <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+          </div>
+          <div id="sync-badge-sub" class="text-[10px] font-medium text-slate-500 truncate">Firebase Firestore</div>
+        </div>
+      </button>
+    </div>
+  </header>
+
+  <!-- =====================================================================
+       MAIN CONTENT WORKSPACE
+       ===================================================================== -->
+  <main class="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 pt-3 sm:pt-5 pb-24 md:pb-10">
+
+    <!-- ===================================================================
+         TAB 1: LIVE TRACKER
+         =================================================================== -->
+    <section id="view-live" class="space-y-4">
+
+      <!-- TOP POST-VOID HOLD BAR (Visible whenever any patient is parked on hold) -->
+      <div id="hold-bar-container" class="hidden bg-purple-50 border border-purple-200 rounded-2xl p-3.5 shadow-card">
+        <div class="flex items-center justify-between gap-2 mb-2.5">
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center justify-center w-7 h-7 rounded-xl bg-purple-600 text-white shrink-0">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </span>
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 class="text-xs sm:text-sm font-extrabold text-purple-950">Post-Void Hold Queue</h2>
+                <span id="hold-count-badge" class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-200 text-purple-900 tabular-nums">0</span>
+              </div>
+              <p class="text-[11px] text-purple-700 hidden sm:block">Waiting-room gap is automatically excluded from active clinical turnaround time</p>
+            </div>
+          </div>
+        </div>
+        <div id="hold-pills-list" class="flex flex-wrap gap-2"></div>
+      </div>
+
+      <!-- TODAY LIVE KPI STRIP -->
+      <div class="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-3">
+        <div class="bg-white border border-slate-200 rounded-2xl px-3.5 py-2.5 shadow-card">
+          <div class="text-[10px] sm:text-[11px] font-bold uppercase tracking-wide text-slate-500">Today Cases</div>
+          <div class="flex items-baseline gap-1.5 mt-0.5">
+            <span id="live-stat-total" class="text-lg sm:text-xl font-extrabold text-slate-900 tabular-nums">0</span>
+            <span id="live-stat-done" class="text-[11px] font-semibold text-teal-700">0 printed</span>
+          </div>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-2xl px-3.5 py-2.5 shadow-card">
+          <div class="text-[10px] sm:text-[11px] font-bold uppercase tracking-wide text-slate-500">Avg Active</div>
+          <div class="flex items-baseline gap-1.5 mt-0.5">
+            <span id="live-stat-avg-active" class="text-lg sm:text-xl font-extrabold text-slate-900 font-mono tabular-nums">—</span>
+            <span id="live-stat-baseline-ref" class="text-[10px] text-slate-400 hidden sm:inline">vs 5.5m</span>
+          </div>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-2xl px-3.5 py-2.5 shadow-card">
+          <div class="text-[10px] sm:text-[11px] font-bold uppercase tracking-wide text-slate-500">Avg Turnover</div>
+          <div class="flex items-baseline gap-1.5 mt-0.5">
+            <span id="live-stat-avg-turn" class="text-lg sm:text-xl font-extrabold text-indigo-700 font-mono tabular-nums">—</span>
+            <span class="text-[10px] text-slate-400 hidden sm:inline">probe-probe</span>
+          </div>
+        </div>
+        <div class="hidden sm:block bg-white border border-slate-200 rounded-2xl px-3.5 py-2.5 shadow-card">
+          <div class="text-[10px] sm:text-[11px] font-bold uppercase tracking-wide text-slate-500">Avg Print Lag</div>
+          <div class="flex items-baseline gap-1.5 mt-0.5">
+            <span id="live-stat-avg-rep" class="text-lg sm:text-xl font-extrabold text-emerald-700 font-mono tabular-nums">—</span>
+            <span class="text-[10px] text-slate-400">end → print</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2-COLUMN DESKTOP / STACKED MOBILE LIVE WORKSPACE -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+
+        <!-- LEFT COLUMN (7/12): ACTIVE SCAN ROOM -->
+        <div class="lg:col-span-7 space-y-3">
+          <div class="flex items-center justify-between px-1">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-teal-600"></span>
+              <h2 class="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wider">Active Scan Room</h2>
+            </div>
+            <span id="live-clock-display" class="text-xs font-mono font-bold text-slate-500 tabular-nums">--:--:--</span>
+          </div>
+
+          <div id="active-room-container"></div>
+        </div>
+
+        <!-- RIGHT COLUMN (5/12): PENDING REPORTS QUEUE -->
+        <div class="lg:col-span-5 space-y-3">
+          <div class="flex items-center justify-between px-1">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
+              <h2 class="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wider">Pending Reports Queue</h2>
+              <span id="pending-count-pill" class="px-2 py-0.5 rounded-full text-xs font-extrabold bg-slate-200 text-slate-700 tabular-nums">0</span>
+            </div>
+            <span class="text-[11px] font-medium text-slate-500">GEM • VBA Edit • Print</span>
+          </div>
+
+          <div id="pending-queue-container" class="space-y-3"></div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ===================================================================
+         TAB 2: PATIENT LOG & EDITOR
+         =================================================================== -->
+    <section id="view-log" class="hidden space-y-4">
+      <!-- Filter Bar -->
+      <div class="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-card space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2.5">
+          <div class="flex flex-wrap items-center gap-2">
+            <select id="log-date-filter" class="min-h-[42px] rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500">
+              <option value="today">Today</option>
+              <option value="7days">Last 7 Days</option>
+              <option value="all">All Time</option>
+              <option value="custom">Specific Date...</option>
+            </select>
+            <input type="date" id="log-specific-date" class="hidden min-h-[42px] rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500" />
+
+            <select id="log-scan-filter" class="min-h-[42px] rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500">
+              <option value="all">All Scan Types</option>
+            </select>
+
+            <select id="log-tag-filter" class="min-h-[42px] rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500">
+              <option value="all">All Delay Tags</option>
+            </select>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <span id="log-record-count" class="text-xs font-bold text-slate-600 px-3 py-2 bg-slate-100 rounded-xl tabular-nums">0 cases</span>
+            <button id="btn-manual-add-log" class="tap-btn min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center gap-1.5">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+              Manual Entry
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Patient Records Table (Desktop) / Cards (Mobile) -->
+      <div id="log-list-container" class="space-y-2.5"></div>
+    </section>
+
+    <!-- ===================================================================
+         TAB 3: AUDIT REPORT & EXPORTS
+         =================================================================== -->
+    <section id="view-audit" class="hidden space-y-5">
+
+      <!-- PRINT-ONLY CLINICAL REPORT HEADER -->
+      <div class="hidden print-only border-b-2 border-slate-900 pb-3 mb-4">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h1 class="text-xl font-extrabold text-slate-900 tracking-tight">Ultrasound Workflow Time-Motion Audit Report</h1>
+            <p class="text-xs text-slate-600 mt-0.5">Clinical Process Analysis — Gemini GEM Dictation, VBA Reporting &amp; Bed Turnover</p>
+          </div>
+          <div class="text-right text-xs text-slate-700 space-y-0.5">
+            <div><strong>Room:</strong> <span id="print-room-code"></span></div>
+            <div><strong>Period:</strong> <span id="print-date-range"></span></div>
+            <div><strong>Generated:</strong> <span id="print-generated-at"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AUDIT FILTER, PARAMETERS & EXPORT BAR -->
+      <div class="no-print bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-card space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <select id="audit-range-select" class="min-h-[42px] rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs sm:text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500">
+              <option value="today">Today</option>
+              <option value="7days" selected>Last 7 Days (1-Week Audit)</option>
+              <option value="all">All Data</option>
+              <option value="custom">Custom Range</option>
+            </select>
+
+            <div id="audit-custom-dates" class="hidden flex items-center gap-1.5">
+              <input type="date" id="audit-start-date" class="min-h-[42px] rounded-xl border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-800" />
+              <span class="text-xs text-slate-400">to</span>
+              <input type="date" id="audit-end-date" class="min-h-[42px] rounded-xl border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-800" />
+            </div>
+
+            <!-- Break Cutoff Input (default 20 min) -->
+            <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 min-h-[42px]">
+              <label for="audit-break-cutoff" class="text-[11px] font-bold text-slate-600 whitespace-nowrap">Break Cutoff:</label>
+              <input type="number" id="audit-break-cutoff" value="20" min="5" max="180" step="1" class="w-14 text-center rounded-lg border border-slate-300 bg-white py-1 text-xs font-bold text-slate-900 tabular-nums" />
+              <span class="text-[11px] text-slate-500">min</span>
+            </div>
+
+            <!-- Manual Baseline Input (default 5.5 min) -->
+            <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 min-h-[42px]">
+              <label for="audit-manual-baseline" class="text-[11px] font-bold text-slate-600 whitespace-nowrap">Manual Baseline:</label>
+              <input type="number" id="audit-manual-baseline" value="5.5" min="1" max="30" step="0.5" class="w-14 text-center rounded-lg border border-slate-300 bg-white py-1 text-xs font-bold text-slate-900 tabular-nums" />
+              <span class="text-[11px] text-slate-500">min</span>
+            </div>
+          </div>
+
+          <!-- Export Buttons -->
+          <div class="flex flex-wrap items-center gap-2">
+            <button id="btn-export-raw-csv" class="tap-btn min-h-[42px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold flex items-center gap-1.5">
+              <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2.1" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              Export Raw CSV
+            </button>
+            <button id="btn-export-summary-csv" class="tap-btn min-h-[42px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold flex items-center gap-1.5">
+              <svg class="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" stroke-width="2.1" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              Summary Stats CSV
+            </button>
+            <button id="btn-print-audit" class="tap-btn min-h-[42px] px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-sm">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.1" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+              Print / Save PDF
+            </button>
+          </div>
+        </div>
+        <p class="text-[11px] text-slate-500">
+          Turnover gaps exceeding the <strong>Break Cutoff</strong> are automatically excluded so lunch or session breaks do not inflate bed-transfer statistics.
+        </p>
+      </div>
+
+      <!-- Dynamic Analytics Dashboard -->
+      <div id="audit-dashboard-content" class="space-y-5"></div>
+    </section>
+
+  </main>
+
+  <!-- =====================================================================
+       MOBILE BOTTOM NAVIGATION BAR (Thumb-Friendly >= 48px)
+       ===================================================================== -->
+  <nav class="no-print md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur border-t border-slate-200 px-2 py-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+    <div class="grid grid-cols-3 gap-1.5 max-w-md mx-auto">
+      <button data-tab="live" class="mobile-nav-btn min-h-[48px] flex flex-col items-center justify-center py-1 rounded-xl text-[11px] font-bold transition relative">
+        <div class="relative">
+          <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7v5l3 2"/></svg>
+          <span id="nav-pending-badge-mobile" class="hidden absolute -top-1 -right-3 px-1.5 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-500 text-white leading-none">0</span>
+        </div>
+        Live Tracker
+      </button>
+      <button data-tab="log" class="mobile-nav-btn min-h-[48px] flex flex-col items-center justify-center py-1 rounded-xl text-[11px] font-bold transition">
+        <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        Patient Log
+      </button>
+      <button data-tab="audit" class="mobile-nav-btn min-h-[48px] flex flex-col items-center justify-center py-1 rounded-xl text-[11px] font-bold transition">
+        <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        Audit Report
+      </button>
+    </div>
+  </nav>
+
+  <!-- =====================================================================
+       TOAST NOTIFICATION CONTAINER
+       ===================================================================== -->
+  <div id="toast-container" class="no-print fixed top-18 right-3 sm:right-6 z-50 flex flex-col gap-2 pointer-events-none max-w-xs w-full" style="top: 4.5rem;"></div>
+
+  <!-- =====================================================================
+       MODAL 1: SYNC & ROOM SETTINGS
+       ===================================================================== -->
+  <div id="modal-sync" class="no-print hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-4 border border-slate-200 my-auto">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 class="text-base font-extrabold text-slate-900">Firestore Sync &amp; Room Settings</h3>
+          <p class="text-xs text-slate-500 mt-0.5">Use the exact same Room Code on your phone, reporting PC, and radiologist's device.</p>
+        </div>
+        <button data-close-modal="modal-sync" class="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Error Diagnostic Box (Shown only if Firestore reports an error) -->
+      <div id="sync-error-box" class="hidden rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs text-rose-800 space-y-1">
+        <div class="font-extrabold text-rose-900">Firestore Connection Error</div>
+        <div id="sync-error-message" class="font-mono text-[11px] break-words"></div>
+        <div class="text-[11px] text-rose-700 pt-1">
+          <strong>Tip:</strong> Check your Firebase Console → <em>Firestore Database → Rules</em> to confirm read/write access is permitted for <code class="font-mono bg-rose-100 px-1 rounded">audit_rooms</code>.
+        </div>
+      </div>
+
+      <!-- Room Code Switcher -->
+      <div class="space-y-2">
+        <label for="input-room-code" class="block text-xs font-bold text-slate-700 uppercase">Sync Room Code</label>
+        <div class="flex gap-2">
+          <input id="input-room-code" type="text" maxlength="40" placeholder="M.S USS-ROOM" class="flex-1 min-h-[44px] rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500" />
+          <button id="btn-copy-room-code" type="button" class="tap-btn min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700">Copy</button>
+        </div>
+        <div class="flex justify-end">
+          <button id="btn-save-room-code" type="button" class="tap-btn min-h-[40px] px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-extrabold shadow-sm">Switch / Connect Room</button>
+        </div>
+      </div>
+
+      <!-- Cloud Diagnostics -->
+      <div class="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600 space-y-1.5">
+        <div class="flex items-center justify-between">
+          <span class="font-semibold text-slate-700">Sync Status:</span>
+          <span id="modal-sync-status" class="font-bold text-teal-700">Connecting...</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="font-semibold text-slate-700">Firebase Project:</span>
+          <span class="font-mono text-[11px] font-bold text-slate-800">uss-audit-8a2aa</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="font-semibold text-slate-700">Room Path:</span>
+          <span id="modal-room-path" class="font-mono text-[10px] text-slate-600 truncate max-w-[200px]">audit_rooms/M.S USS-ROOM/patients</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="font-semibold text-slate-700">Synced Documents:</span>
+          <span id="modal-doc-count" class="font-mono font-bold text-slate-900 tabular-nums">0</span>
+        </div>
+      </div>
+
+      <!-- Demo Data & Backup Actions -->
+      <div class="border-t border-slate-200 pt-3 space-y-2">
+        <div class="text-[11px] font-bold uppercase text-slate-500">Testing &amp; Backup Tools</div>
+        <div class="grid grid-cols-2 gap-2">
+          <button id="btn-seed-demo" type="button" class="tap-btn min-h-[42px] px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 text-xs font-bold">
+            Load 5-Day Demo Data
+          </button>
+          <button id="btn-clear-demo" type="button" class="tap-btn min-h-[42px] px-3 py-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold">
+            Clear Demo Data Only
+          </button>
+        </div>
+        <button id="btn-export-json" type="button" class="tap-btn w-full min-h-[42px] px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center justify-center gap-1.5">
+          <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          Export JSON Backup
+        </button>
+      </div>
+
+      <!-- Privacy Notice -->
+      <div class="rounded-xl bg-amber-50 border border-amber-200/80 px-3 py-2 text-[11px] text-amber-900 flex items-center gap-2">
+        <svg class="w-4 h-4 text-amber-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+        <span>Use anonymous sequence numbers only (no patient names or BHT numbers).</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       MODAL 2: EDIT PATIENT RECORD & TIMESTAMPS
+       ===================================================================== -->
+  <div id="modal-edit" class="no-print hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full my-auto max-h-[92vh] flex flex-col border border-slate-200 overflow-hidden">
+      <div class="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between shrink-0">
+        <div>
+          <h3 id="edit-modal-heading" class="text-base font-extrabold text-slate-900">Edit Patient Record</h3>
+          <p class="text-[11px] text-slate-500">Fix mistapped timestamps (HH:MM:SS), scans, delay tags, or notes</p>
+        </div>
+        <button data-close-modal="modal-edit" class="p-2 rounded-xl text-slate-400 hover:bg-slate-100">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <form id="form-edit-record" class="p-5 overflow-y-auto space-y-4 flex-1">
+        <input type="hidden" id="edit-record-id" />
+
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Clinic Date</label>
+            <input type="date" id="edit-clinic-date" required class="w-full min-h-[40px] rounded-xl border border-slate-300 px-2.5 py-2 text-xs font-semibold text-slate-800" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Patient #</label>
+            <input type="number" id="edit-patient-num" min="1" required class="w-full min-h-[40px] rounded-xl border border-slate-300 px-2.5 py-2 text-xs font-bold text-slate-800 tabular-nums" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Status</label>
+            <select id="edit-status" class="w-full min-h-[40px] rounded-xl border border-slate-300 px-2.5 py-2 text-xs font-semibold text-slate-800">
+              <option value="in_room">In Scan Room</option>
+              <option value="on_hold">On Hold (Post-Void)</option>
+              <option value="pending_report">Pending Report</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Scan Types -->
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1.5">Scan Type(s)</label>
+          <div id="edit-scans-chips" class="flex flex-wrap gap-1.5"></div>
+          <input type="text" id="edit-other-scan" placeholder="Custom scan name (when Other selected)" class="hidden mt-2 w-full min-h-[40px] rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-800" />
+        </div>
+
+        <!-- Visit 1 Timestamps -->
+        <div class="bg-slate-50 rounded-xl p-3 border border-slate-200 space-y-2.5">
+          <div class="text-xs font-extrabold text-slate-700">Visit 1 Timestamps</div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div>
+              <label class="block text-[10px] font-bold text-blue-700 uppercase mb-1">Room Entry</label>
+              <input type="time" step="1" id="edit-v1-entry" class="w-full min-h-[38px] rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-mono font-semibold" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-amber-700 uppercase mb-1">Scan Start</label>
+              <input type="time" step="1" id="edit-v1-start" class="w-full min-h-[38px] rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-mono font-semibold" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-indigo-700 uppercase mb-1">Scan End</label>
+              <input type="time" step="1" id="edit-v1-end" class="w-full min-h-[38px] rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-mono font-semibold" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Split Visit Toggle & Visit 2 Timestamps -->
+        <div class="bg-purple-50/70 rounded-xl p-3 border border-purple-200 space-y-2.5">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="edit-is-split" class="w-4 h-4 rounded text-purple-600 focus:ring-purple-500" />
+            <span class="text-xs font-bold text-purple-900">Split Visit (Pre-Void / Post-Void Return)</span>
+          </label>
+          <div id="edit-v2-fields" class="hidden grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+            <div>
+              <label class="block text-[10px] font-bold text-purple-700 uppercase mb-1">V2 Room Entry</label>
+              <input type="time" step="1" id="edit-v2-entry" class="w-full min-h-[38px] rounded-lg border border-purple-300 bg-white px-2.5 py-1.5 text-xs font-mono font-semibold" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-amber-700 uppercase mb-1">V2 Scan Start</label>
+              <input type="time" step="1" id="edit-v2-start" class="w-full min-h-[38px] rounded-lg border border-purple-300 bg-white px-2.5 py-1.5 text-xs font-mono font-semibold" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-indigo-700 uppercase mb-1">V2 Scan End</label>
+              <input type="time" step="1" id="edit-v2-end" class="w-full min-h-[38px] rounded-lg border border-purple-300 bg-white px-2.5 py-1.5 text-xs font-mono font-semibold" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Report Printed -->
+        <div class="bg-emerald-50/70 rounded-xl p-3 border border-emerald-200">
+          <label class="block text-[10px] font-bold text-emerald-800 uppercase mb-1">Report Printed Timestamp</label>
+          <input type="time" step="1" id="edit-report-printed" class="w-full sm:w-48 min-h-[38px] rounded-lg border border-emerald-300 bg-white px-2.5 py-1.5 text-xs font-mono font-semibold" />
+        </div>
+
+        <!-- Delay Tags -->
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1.5">Delay Tags</label>
+          <div id="edit-tags-chips" class="flex flex-wrap gap-1.5"></div>
+        </div>
+
+        <!-- Short Note -->
+        <div>
+          <label for="edit-notes" class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Short Anonymous Note (Optional)</label>
+          <input type="text" id="edit-notes" maxlength="160" placeholder="e.g., Wheelchair transfer, printer jam, complex study..." class="w-full min-h-[40px] rounded-xl border border-slate-300 px-3 py-2 text-xs text-slate-800" />
+        </div>
+      </form>
+
+      <div class="px-5 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-2 shrink-0">
+        <button id="btn-delete-in-edit" type="button" class="tap-btn min-h-[40px] px-3 py-2 rounded-xl text-rose-600 hover:bg-rose-50 text-xs font-bold">
+          Delete Record
+        </button>
+        <div class="flex items-center gap-2">
+          <button data-close-modal="modal-edit" type="button" class="min-h-[40px] px-4 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
+          <button id="btn-save-edit" type="button" class="tap-btn min-h-[40px] px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-extrabold shadow-sm">Save Changes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       MODAL 3: CUSTOM CONFIRMATION DIALOG (No native alert()/confirm())
+       ===================================================================== -->
+  <div id="modal-confirm" class="no-print hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-5 space-y-4 border border-slate-200">
+      <div>
+        <h3 id="confirm-title" class="text-base font-extrabold text-slate-900">Confirm Action</h3>
+        <p id="confirm-message" class="text-xs text-slate-600 mt-1 leading-relaxed"></p>
+      </div>
+      <div class="flex items-center justify-end gap-2">
+        <button id="btn-confirm-cancel" type="button" class="min-h-[40px] px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
+        <button id="btn-confirm-ok" type="button" class="tap-btn min-h-[40px] px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       APPLICATION JAVASCRIPT & FIREBASE v10 FIRESTORE SYNC ENGINE
+       ===================================================================== -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+    import {
+      initializeFirestore,
+      getFirestore,
+      persistentLocalCache,
+      persistentMultipleTabManager,
+      collection,
+      doc,
+      setDoc,
+      updateDoc,
+      deleteDoc,
+      writeBatch,
+      onSnapshot
+    } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+    /* =======================================================================
+       1. FIREBASE CONFIGURATION & INITIALIZATION (EXACT USER PROJECT CONFIG)
+       ======================================================================= */
+    const firebaseConfig = {
+      apiKey: "AIzaSyBgt1N6jJUSoy4MlzXgGbs5RmKi5Du4d6c",
+      authDomain: "uss-audit-8a2aa.firebaseapp.com",
+      projectId: "uss-audit-8a2aa",
+      storageBucket: "uss-audit-8a2aa.firebasestorage.app",
+      messagingSenderId: "863265339407",
+      appId: "1:863265339407:web:62336c0ad73cbf14718b7a"
+    };
+
+    const app = initializeApp(firebaseConfig);
+
+    // Initialize Firestore with multi-tab offline persistence so hospital Wi-Fi drops never lose taps
+    let db;
+    try {
+      db = initializeFirestore(app, {
+        localCache: persistentLocalCache({
+          tabManager: persistentMultipleTabManager()
+        })
+      });
+    } catch (persistErr) {
+      console.warn("Persistent cache unavailable, falling back to default Firestore:", persistErr);
+      db = getFirestore(app);
+    }
+
+    /* =======================================================================
+       2. CLINICAL CONSTANTS & APPLICATION STATE
+       ======================================================================= */
+    const DEFAULT_ROOM_CODE = "M.S USS-ROOM";
+    const LS_ROOM_KEY = "uss_flow_room_code_v2";
+    const LS_CACHE_PREFIX = "uss_flow_cache_v2_";
+
+    const SCAN_TYPES = [
+      "USS Abdomen",
+      "Breast & Bilateral Axilla",
+      "USS Neck",
+      "Carotid Doppler",
+      "Venous Duplex",
+      "Fetal Doppler",
+      "Anomaly Scan",
+      "Soft Tissue",
+      "Other"
+    ];
+
+    const DELAY_TAGS = [
+      "GEM / AI Lag",
+      "Slow Bed Transfer",
+      "Difficult Scan",
+      "Waiting Radiologist",
+      "Word / VBA / Printer",
+      "Wi-Fi / Tech Issue",
+      "Full Bladder / Prep"
+    ];
+
+    const state = {
+      activeTab: "live", // 'live' | 'log' | 'audit'
+      roomId: DEFAULT_ROOM_CODE,
+      records: [],
+      unsubscribe: null,
+      // Sync metadata
+      syncMode: "connecting", // 'live' | 'syncing' | 'offline' | 'error'
+      hasPendingWrites: false,
+      fromCache: false,
+      lastError: "",
+      // UI filter states
+      logDateFilter: "today",
+      logSpecificDate: "",
+      logScanFilter: "all",
+      logTagFilter: "all",
+      auditRange: "7days",
+      auditStartDate: "",
+      auditEndDate: "",
+      breakCutoffMin: 20,
+      manualBaselineMin: 5.5,
+      // Modal drafts
+      editDraftScans: new Set(),
+      editDraftTags: new Set(),
+      confirmCallback: null
+    };
+
+    /* =======================================================================
+       3. UTILITY FUNCTIONS (SANITIZATION, TIME, STATS)
+       ======================================================================= */
+
+    /** Sanitize room code ONLY by replacing '/' with '-' and trimming */
+    function sanitizeRoomId(raw) {
+      const cleaned = String(raw || "").trim().replace(/\//g, "-");
+      return cleaned || DEFAULT_ROOM_CODE;
+    }
+
+    /** Safe localStorage helpers */
+    function readLS(key, fallback = null) {
+      try {
+        const val = localStorage.getItem(key);
+        return val !== null ? val : fallback;
+      } catch (_) {
+        return fallback;
+      }
+    }
+
+    function writeLS(key, value) {
+      try {
+        localStorage.setItem(key, value);
+      } catch (_) {}
+    }
+
+    /** Mirror cache in localStorage for instant render on refresh */
+    function saveLocalCache(roomId, records) {
+      try {
+        writeLS(LS_CACHE_PREFIX + roomId, JSON.stringify(records));
+      } catch (_) {}
+    }
+
+    function loadLocalCache(roomId) {
+      try {
+        const raw = readLS(LS_CACHE_PREFIX + roomId);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (_) {
+        return [];
+      }
+    }
+
+    /** Local YYYY-MM-DD date string */
+    function getLocalDateStr(input = Date.now()) {
+      const d = input instanceof Date ? input : new Date(input);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }
+
+    function getOffsetDateStr(deltaDays) {
+      const d = new Date();
+      d.setDate(d.getDate() + deltaDays);
+      return getLocalDateStr(d);
+    }
+
+    /** Format epoch ms as HH:MM:SS (24h) */
+    function formatClock(ms) {
+      if (!ms || isNaN(ms)) return "—";
+      const d = new Date(ms);
+      return d.toLocaleTimeString([], { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    }
+
+    function formatIso(ms) {
+      if (!ms || isNaN(ms)) return "";
+      return new Date(ms).toISOString();
+    }
+
+    /** Format epoch ms for HTML <input type="time" step="1"> */
+    function toTimeInputValue(ms) {
+      if (!ms || isNaN(ms)) return "";
+      const d = new Date(ms);
+      return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
+    }
+
+    /** Parse YYYY-MM-DD + HH:MM(:SS) back to local epoch ms */
+    function fromDateAndTimeInput(dateStr, timeStr) {
+      if (!dateStr || !timeStr) return null;
+      const [y, m, d] = dateStr.split("-").map(Number);
+      const parts = timeStr.split(":").map(Number);
+      if (!y || !m || !d || isNaN(parts[0]) || isNaN(parts[1])) return null;
+      return new Date(y, m - 1, d, parts[0], parts[1], parts[2] || 0, 0).getTime();
+    }
+
+    /** Format ms duration as mm:ss (or h:mm:ss if >= 60 min) */
+    function formatDuration(ms) {
+      if (ms === null || ms === undefined || isNaN(ms) || ms < 0) return "—";
+      const totalSec = Math.round(ms / 1000);
+      const hrs = Math.floor(totalSec / 3600);
+      const mins = Math.floor((totalSec % 3600) / 60);
+      const secs = totalSec % 60;
+      if (hrs > 0) {
+        return `${hrs}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+      }
+      return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    }
+
+    /** Format ms duration as compact m:ss (without leading zero on minutes) */
+    function formatCompactDuration(ms) {
+      if (ms === null || ms === undefined || isNaN(ms) || ms < 0) return "—";
+      const totalSec = Math.round(ms / 1000);
+      const hrs = Math.floor(totalSec / 3600);
+      const mins = Math.floor((totalSec % 3600) / 60);
+      const secs = totalSec % 60;
+      if (hrs > 0) return `${hrs}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+      return `${mins}:${String(secs).padStart(2, "0")}`;
+    }
+
+    function formatDecMin(ms) {
+      if (ms === null || ms === undefined || isNaN(ms) || ms < 0) return "—";
+      return `${(ms / 60000).toFixed(2)}m`;
+    }
+
+    function msToCsvMin(ms) {
+      if (ms === null || ms === undefined || isNaN(ms) || ms < 0) return "";
+      return (ms / 60000).toFixed(2);
+    }
+
+    function msToCsvSec(ms) {
+      if (ms === null || ms === undefined || isNaN(ms) || ms < 0) return "";
+      return Math.round(ms / 1000);
+    }
+
+    function escHtml(str) {
+      return String(str || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    /** Normalize record fields safely */
+    function normalizeRecord(raw, id) {
+      return {
+        id: id || raw.id,
+        roomId: raw.roomId || state.roomId,
+        clinicDate: raw.clinicDate || getLocalDateStr(raw.entry1 || raw.createdAt || Date.now()),
+        patientNum: Number(raw.patientNum) || 1,
+        scans: Array.isArray(raw.scans) ? raw.scans : [],
+        otherScanText: raw.otherScanText || "",
+        delayTags: Array.isArray(raw.delayTags) ? raw.delayTags : [],
+        notes: raw.notes || "",
+        status: raw.status || "completed",
+        isSplitVisit: !!raw.isSplitVisit,
+        activeVisit: raw.activeVisit === 2 ? 2 : 1,
+        entry1: raw.entry1 ?? raw.v1RoomIn ?? null,
+        scanStart1: raw.scanStart1 ?? raw.v1ScanStart ?? null,
+        scanEnd1: raw.scanEnd1 ?? raw.v1ScanEnd ?? null,
+        holdAt: raw.holdAt ?? raw.holdStartedAt ?? null,
+        entry2: raw.entry2 ?? raw.v2RoomIn ?? null,
+        scanStart2: raw.scanStart2 ?? raw.v2ScanStart ?? null,
+        scanEnd2: raw.scanEnd2 ?? raw.v2ScanEnd ?? null,
+        reportPrinted: raw.reportPrinted ?? null,
+        isDemo: !!raw.isDemo,
+        createdAt: raw.createdAt || raw.entry1 || Date.now(),
+        updatedAt: raw.updatedAt || Date.now()
+      };
+    }
+
+    function getDisplayScans(rec) {
+      if (!rec.scans || rec.scans.length === 0) return ["Unassigned Scan"];
+      return rec.scans.map(s => (s === "Other" && rec.otherScanText ? `Other: ${rec.otherScanText}` : s));
+    }
+
+    /* =======================================================================
+       4. TIME-MOTION & STATISTICAL ENGINE
+       ======================================================================= */
+
+    /** Compute stage durations for a single patient record safely */
+    function computeRecordMetrics(rec) {
+      const prep1 = (rec.entry1 && rec.scanStart1 && rec.scanStart1 >= rec.entry1) ? (rec.scanStart1 - rec.entry1) : null;
+      const prep2 = (rec.entry2 && rec.scanStart2 && rec.scanStart2 >= rec.entry2) ? (rec.scanStart2 - rec.entry2) : null;
+      const prepMs = (prep1 !== null || prep2 !== null) ? (prep1 || 0) + (prep2 || 0) : null;
+
+      const scan1 = (rec.scanStart1 && rec.scanEnd1 && rec.scanEnd1 >= rec.scanStart1) ? (rec.scanEnd1 - rec.scanStart1) : null;
+      const scan2 = (rec.scanStart2 && rec.scanEnd2 && rec.scanEnd2 >= rec.scanStart2) ? (rec.scanEnd2 - rec.scanStart2) : null;
+      const scanMs = (scan1 !== null || scan2 !== null) ? (scan1 || 0) + (scan2 || 0) : null;
+
+      const lastScanEnd = rec.scanEnd2 || rec.scanEnd1 || null;
+      const reportMs = (lastScanEnd && rec.reportPrinted && rec.reportPrinted >= lastScanEnd)
+        ? (rec.reportPrinted - lastScanEnd)
+        : null;
+
+      const holdRef = rec.scanEnd1 || rec.holdAt || null;
+      const waitGapMs = (rec.isSplitVisit && holdRef && rec.entry2 && rec.entry2 >= holdRef)
+        ? (rec.entry2 - holdRef)
+        : null;
+
+      // Total Active Patient Time (Entry -> Printed, excluding Post-Void waiting gap)
+      let totalActiveMs = null;
+      if (rec.isSplitVisit && rec.entry2 && rec.scanEnd2) {
+        const v1Span = (rec.entry1 && rec.scanEnd1 && rec.scanEnd1 >= rec.entry1) ? (rec.scanEnd1 - rec.entry1) : null;
+        const v2Span = (rec.entry2 && rec.scanEnd2 && rec.scanEnd2 >= rec.entry2) ? (rec.scanEnd2 - rec.entry2) : null;
+        if (v1Span !== null && v2Span !== null && reportMs !== null) {
+          totalActiveMs = v1Span + v2Span + reportMs;
+        }
+      } else if (rec.entry1 && rec.reportPrinted && rec.reportPrinted >= rec.entry1) {
+        totalActiveMs = rec.reportPrinted - rec.entry1;
+      }
+
+      return {
+        prep1, prep2, prepMs,
+        scan1, scan2, scanMs,
+        lastScanEnd, reportMs, waitGapMs, totalActiveMs
+      };
+    }
+
+    /** Compute room-level Door-to-Door and Probe-to-Probe turnovers across visits */
+    function computeTurnoverMetrics(records, breakCutoffMin = 20) {
+      const cutoffMs = breakCutoffMin * 60 * 1000;
+      const byDate = {};
+
+      records.forEach(r => {
+        if (!byDate[r.clinicDate]) byDate[r.clinicDate] = [];
+        if (r.entry1) {
+          byDate[r.clinicDate].push({
+            recordId: r.id,
+            clinicDate: r.clinicDate,
+            visit: 1,
+            entry: r.entry1,
+            scanStart: r.scanStart1,
+            scanEnd: r.scanEnd1
+          });
+        }
+        if (r.entry2) {
+          byDate[r.clinicDate].push({
+            recordId: r.id,
+            clinicDate: r.clinicDate,
+            visit: 2,
+            entry: r.entry2,
+            scanStart: r.scanStart2,
+            scanEnd: r.scanEnd2
+          });
+        }
+      });
+
+      const doorValues = [];
+      const probeValues = [];
+      const byRecordId = {};
+      const byDateProbe = {};
+
+      Object.keys(byDate).forEach(date => {
+        const events = byDate[date].sort((a, b) => a.entry - b.entry);
+        byDateProbe[date] = [];
+        for (let i = 1; i < events.length; i++) {
+          const prev = events[i - 1];
+          const curr = events[i];
+          if (!prev.scanEnd) continue;
+
+          const doorGap = curr.entry - prev.scanEnd;
+          const probeGap = curr.scanStart ? (curr.scanStart - prev.scanEnd) : null;
+
+          const validDoor = doorGap >= 0 && doorGap <= cutoffMs;
+          const validProbe = probeGap !== null && probeGap >= 0 && probeGap <= cutoffMs;
+
+          if (validDoor) doorValues.push(doorGap);
+          if (validProbe) {
+            probeValues.push(probeGap);
+            byDateProbe[date].push(probeGap);
+          }
+
+          if (curr.visit === 1) {
+            byRecordId[curr.recordId] = {
+              doorTurnoverMs: validDoor ? doorGap : null,
+              probeTurnoverMs: validProbe ? probeGap : null
+            };
+          }
+        }
+      });
+
+      return { doorValues, probeValues, byRecordId, byDateProbe };
+    }
+
+    /** Exact descriptive statistics (n, mean, median, min, max, sample SD using n-1) */
+    function calcStats(values) {
+      const nums = values.filter(v => typeof v === "number" && Number.isFinite(v) && v >= 0);
+      const n = nums.length;
+      if (n === 0) {
+        return { n: 0, mean: null, median: null, min: null, max: null, sd: null };
+      }
+      const sorted = [...nums].sort((a, b) => a - b);
+      const sum = sorted.reduce((acc, v) => acc + v, 0);
+      const mean = sum / n;
+      const mid = Math.floor(n / 2);
+      const median = n % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+      const min = sorted[0];
+      const max = sorted[n - 1];
+      let sd = null;
+      if (n > 1) {
+        const sqDiffSum = sorted.reduce((acc, v) => acc + Math.pow(v - mean, 2), 0);
+        sd = Math.sqrt(sqDiffSum / (n - 1));
+      }
+      return { n, mean, median, min, max, sd };
+    }
+
+    /* =======================================================================
+       5. FIRESTORE REAL-TIME SYNC LAYER (PER-PATIENT SUBCOLLECTION)
+       ======================================================================= */
+
+    function getPatientsCollection(roomId = state.roomId) {
+      return collection(db, "audit_rooms", roomId, "patients");
+    }
+
+    function updateSyncStatusBadge() {
+      const dot = document.getElementById("sync-status-dot");
+      const text = document.getElementById("sync-badge-text");
+      const sub = document.getElementById("sync-badge-sub");
+      const modalStatus = document.getElementById("modal-sync-status");
+      const errBox = document.getElementById("sync-error-box");
+      const errMsg = document.getElementById("sync-error-message");
+      const roomPathEl = document.getElementById("modal-room-path");
+      const docCountEl = document.getElementById("modal-doc-count");
+
+      roomPathEl.textContent = `audit_rooms/${state.roomId}/patients`;
+      docCountEl.textContent = String(state.records.length);
+
+      const isOffline = !navigator.onLine;
+      dot.className = "w-2.5 h-2.5 rounded-full shrink-0";
+
+      if (state.syncMode === "error") {
+        dot.classList.add("bg-rose-500");
+        text.textContent = "Firestore Error";
+        sub.textContent = "Tap to inspect rules";
+        modalStatus.textContent = "Firestore Error";
+        modalStatus.className = "font-bold text-rose-600";
+        errBox.classList.remove("hidden");
+        errMsg.textContent = state.lastError || "Permission denied or network blocked.";
+      } else if (isOffline || (state.fromCache && state.hasPendingWrites)) {
+        dot.classList.add("bg-amber-500");
+        text.textContent = "Offline (Queued)";
+        sub.textContent = state.roomId;
+        modalStatus.textContent = "Offline — Writes Queued Locally";
+        modalStatus.className = "font-bold text-amber-600";
+        errBox.classList.add("hidden");
+      } else if (state.hasPendingWrites || state.syncMode === "connecting") {
+        dot.classList.add("bg-emerald-500", "animate-status-pulse");
+        text.textContent = "Syncing...";
+        sub.textContent = state.roomId;
+        modalStatus.textContent = "Syncing with Firestore...";
+        modalStatus.className = "font-bold text-teal-600";
+        errBox.classList.add("hidden");
+      } else {
+        dot.classList.add("bg-emerald-500", "animate-status-pulse");
+        text.textContent = `Live · ${state.roomId}`;
+        sub.textContent = "Synced · uss-audit-8a2aa";
+        modalStatus.textContent = `Live Connected (${state.roomId})`;
+        modalStatus.className = "font-bold text-emerald-700";
+        errBox.classList.add("hidden");
+      }
+    }
+
+    function connectToRoom(rawRoomCode) {
+      const roomId = sanitizeRoomId(rawRoomCode);
+      state.roomId = roomId;
+      state.lastError = "";
+      state.syncMode = "connecting";
+      writeLS(LS_ROOM_KEY, roomId);
+      document.getElementById("input-room-code").value = roomId;
+      document.title = `USS Flow Audit — ${roomId}`;
+
+      // Tear down previous listener
+      if (state.unsubscribe) {
+        state.unsubscribe();
+        state.unsubscribe = null;
+      }
+
+      // Immediately render from localStorage mirror cache so UI never flickers blank
+      const cached = loadLocalCache(roomId);
+      state.records = cached.map(r => normalizeRecord(r, r.id));
+      sortRecordsInPlace();
+      updateSyncStatusBadge();
+      renderAll();
+
+      // Attach real-time Firestore listener with metadata changes
+      const patientsColRef = getPatientsCollection(roomId);
+      state.unsubscribe = onSnapshot(
+        patientsColRef,
+        { includeMetadataChanges: true },
+        (snapshot) => {
+          const nextRecords = [];
+          snapshot.forEach((docSnap) => {
+            nextRecords.push(normalizeRecord(docSnap.data(), docSnap.id));
+          });
+          state.records = nextRecords;
+          sortRecordsInPlace();
+          saveLocalCache(roomId, state.records);
+
+          state.hasPendingWrites = snapshot.metadata.hasPendingWrites;
+          state.fromCache = snapshot.metadata.fromCache;
+          state.lastError = "";
+          state.syncMode = "live";
+          updateSyncStatusBadge();
+          renderAll();
+        },
+        (err) => {
+          console.error("Firestore onSnapshot error:", err);
+          state.syncMode = "error";
+          state.lastError = `${err.code || "error"}: ${err.message || String(err)}`;
+          updateSyncStatusBadge();
+          showToast("Firestore sync error — tap the red badge for details.", "error");
+        }
+      );
+    }
+
+    function sortRecordsInPlace() {
+      state.records.sort((a, b) => (b.entry1 || b.createdAt || 0) - (a.entry1 || a.createdAt || 0));
+    }
+
+    /** Create or overwrite a single patient document */
+    async function savePatientDoc(record) {
+      const normalized = normalizeRecord({ ...record, roomId: state.roomId, updatedAt: Date.now() }, record.id);
+
+      // Optimistic local state + mirror cache for instant 1-tap feedback
+      const idx = state.records.findIndex(r => r.id === normalized.id);
+      if (idx >= 0) state.records[idx] = normalized;
+      else state.records.unshift(normalized);
+      sortRecordsInPlace();
+      saveLocalCache(state.roomId, state.records);
+      renderAll();
+
+      try {
+        const docRef = doc(getPatientsCollection(state.roomId), normalized.id);
+        await setDoc(docRef, normalized);
+      } catch (err) {
+        console.error("Firestore setDoc error:", err);
+        state.syncMode = "error";
+        state.lastError = `${err.code || "write-error"}: ${err.message || String(err)}`;
+        updateSyncStatusBadge();
+        showToast("Could not write to Firestore — check rules.", "error");
+      }
+    }
+
+    /** Patch specific fields of a patient document */
+    async function patchPatientDoc(id, patch) {
+      const existing = state.records.find(r => r.id === id);
+      if (!existing) return;
+      const now = Date.now();
+      const updated = normalizeRecord({ ...existing, ...patch, updatedAt: now }, id);
+      const idx = state.records.findIndex(r => r.id === id);
+      if (idx >= 0) state.records[idx] = updated;
+      saveLocalCache(state.roomId, state.records);
+      renderAll();
+
+      try {
+        const docRef = doc(getPatientsCollection(state.roomId), id);
+        await updateDoc(docRef, { ...patch, updatedAt: now });
+      } catch (err) {
+        // Fallback to setDoc if doc wasn't created remotely yet
+        try {
+          const docRef = doc(getPatientsCollection(state.roomId), id);
+          await setDoc(docRef, updated);
+        } catch (err2) {
+          console.error("Firestore update error:", err2);
+          state.syncMode = "error";
+          state.lastError = `${err2.code || "update-error"}: ${err2.message || String(err2)}`;
+          updateSyncStatusBadge();
+          showToast("Firestore update failed — check connection/rules.", "error");
+        }
+      }
+    }
+
+    /** Delete a patient document */
+    async function deletePatientDoc(id) {
+      state.records = state.records.filter(r => r.id !== id);
+      saveLocalCache(state.roomId, state.records);
+      renderAll();
+
+      try {
+        const docRef = doc(getPatientsCollection(state.roomId), id);
+        await deleteDoc(docRef);
+      } catch (err) {
+        console.error("Firestore deleteDoc error:", err);
+        state.syncMode = "error";
+        state.lastError = `${err.code || "delete-error"}: ${err.message || String(err)}`;
+        updateSyncStatusBadge();
+        showToast("Firestore delete failed.", "error");
+      }
+    }
+
+    /* =======================================================================
+       6. CLINICAL WORKFLOW ACTIONS (4-STEP FLOW + POST-VOID HOLD)
+       ======================================================================= */
+
+    function getNextPatientNumber(dateStr = getLocalDateStr()) {
+      const todays = state.records.filter(r => r.clinicDate === dateStr);
+      if (todays.length === 0) return 1;
+      return todays.reduce((max, r) => Math.max(max, Number(r.patientNum) || 0), 0) + 1;
+    }
+
+    function generatePatientDocId(dateStr, ptNum, ts) {
+      const ymd = dateStr.replace(/-/g, "");
+      const pPad = String(ptNum).padStart(3, "0");
+      return `${ymd}_P${pPad}_${ts}`;
+    }
+
+    /** Step 1: Patient Entered Room */
+    async function actionPatientEntered() {
+      const now = Date.now();
+      const today = getLocalDateStr(now);
+      const ptNum = getNextPatientNumber(today);
+      const id = generatePatientDocId(today, ptNum, now);
+
+      await savePatientDoc({
+        id,
+        roomId: state.roomId,
+        clinicDate: today,
+        patientNum: ptNum,
+        scans: [],
+        otherScanText: "",
+        delayTags: [],
+        notes: "",
+        status: "in_room",
+        isSplitVisit: false,
+        activeVisit: 1,
+        entry1: now,
+        scanStart1: null,
+        scanEnd1: null,
+        holdAt: null,
+        entry2: null,
+        scanStart2: null,
+        scanEnd2: null,
+        reportPrinted: null,
+        isDemo: false,
+        createdAt: now,
+        updatedAt: now
+      });
+
+      showToast(`Patient #${ptNum} entered room (${formatClock(now)})`, "info");
+    }
+
+    /** Step 2: Scan Started */
+    async function actionScanStarted(id) {
+      const rec = state.records.find(r => r.id === id);
+      if (!rec) return;
+      const now = Date.now();
+      if (rec.activeVisit === 2) {
+        await patchPatientDoc(id, { scanStart2: now });
+        showToast(`Pt #${rec.patientNum} (Visit 2) scan started`, "warning");
+      } else {
+        await patchPatientDoc(id, { scanStart1: now });
+        showToast(`Pt #${rec.patientNum} scan started`, "warning");
+      }
+    }
+
+    /** Step 3: Scan Ended -> Moves to Pending Reports Queue & clears room */
+    async function actionScanEnded(id) {
+      const rec = state.records.find(r => r.id === id);
+      if (!rec) return;
+      const now = Date.now();
+      const patch = { status: "pending_report" };
+      if (rec.activeVisit === 2) patch.scanEnd2 = now;
+      else patch.scanEnd1 = now;
+
+      await patchPatientDoc(id, patch);
+      showToast(`Pt #${rec.patientNum} scan ended → Pending Reports`, "info");
+    }
+
+    /** Park patient on Post-Void Hold (from Active Room or Pending Queue) */
+    async function actionHoldPostVoid(id) {
+      const rec = state.records.find(r => r.id === id);
+      if (!rec) return;
+      const now = Date.now();
+      await patchPatientDoc(id, {
+        scanEnd1: rec.scanEnd1 || now,
+        holdAt: now,
+        isSplitVisit: true,
+        status: "on_hold"
+      });
+      showToast(`Pt #${rec.patientNum} parked on Post-Void Hold`, "purple");
+    }
+
+    /** 1-Tap Resume Visit 2 from Hold Bar */
+    async function actionResumeVisit2(id) {
+      const rec = state.records.find(r => r.id === id);
+      if (!rec) return;
+      const now = Date.now();
+      await patchPatientDoc(id, {
+        isSplitVisit: true,
+        activeVisit: 2,
+        entry2: now,
+        scanStart2: null,
+        scanEnd2: null,
+        status: "in_room"
+      });
+      showToast(`Pt #${rec.patientNum} resumed in Room (Visit 2)`, "purple");
+    }
+
+    /** Step 4: Report Printed -> Completes case */
+    async function actionReportPrinted(id) {
+      const rec = state.records.find(r => r.id === id);
+      if (!rec) return;
+      const now = Date.now();
+      await patchPatientDoc(id, {
+        reportPrinted: now,
+        status: "completed"
+      });
+      const updated = state.records.find(r => r.id === id);
+      const m = updated ? computeRecordMetrics(updated) : null;
+      const dur = m && m.totalActiveMs !== null ? ` · ${formatCompactDuration(m.totalActiveMs)} active` : "";
+      showToast(`Pt #${rec.patientNum} Report Printed ✓${dur}`, "success");
+    }
+
+    /** Toggle Scan Type chip */
+    async function actionToggleScan(id, scanName) {
+      const rec = state.records.find(r => r.id === id);
+      if (!rec) return;
+      const next = [...rec.scans];
+      const idx = next.indexOf(scanName);
+      if (idx >= 0) next.splice(idx, 1);
+      else next.push(scanName);
+      await patchPatientDoc(id, { scans: next });
+    }
+
+    /** Toggle Delay Tag chip */
+    async function actionToggleTag(id, tagName) {
+      const rec = state.records.find(r => r.id === id);
+      if (!rec) return;
+      const next = [...rec.delayTags];
+      const idx = next.indexOf(tagName);
+      if (idx >= 0) next.splice(idx, 1);
+      else next.push(tagName);
+      await patchPatientDoc(id, { delayTags: next });
+    }
+
+    /** Undo last tap in active room */
+    async function actionUndoActive(id) {
+      const rec = state.records.find(r => r.id === id);
+      if (!rec) return;
+      if (rec.activeVisit === 2) {
+        if (rec.scanStart2) {
+          await patchPatientDoc(id, { scanStart2: null });
+          showToast(`Undid Visit 2 Scan Start (Pt #${rec.patientNum})`, "info");
+        } else {
+          await patchPatientDoc(id, { status: "on_hold", activeVisit: 1, entry2: null });
+          showToast(`Returned Pt #${rec.patientNum} to Post-Void Hold`, "purple");
+        }
+      } else {
+        if (rec.scanStart1) {
+          await patchPatientDoc(id, { scanStart1: null });
+          showToast(`Undid Scan Start (Pt #${rec.patientNum})`, "info");
+        } else {
+          openConfirm(
+            `Remove Patient #${rec.patientNum}?`,
+            "Only Room Entry was recorded. Remove this entry from Firestore?",
+            async () => {
+              await deletePatientDoc(id);
+              showToast(`Removed Pt #${rec.patientNum}`, "info");
+            },
+            "Remove"
+          );
+        }
+      }
+    }
+
+    /* =======================================================================
+       7. UI HELPERS (TOASTS & MODALS)
+       ======================================================================= */
+    function showToast(message, type = "info") {
+      const container = document.getElementById("toast-container");
+      const styles = {
+        info: "bg-slate-900 text-white",
+        success: "bg-emerald-600 text-white",
+        warning: "bg-amber-600 text-white",
+        error: "bg-rose-600 text-white",
+        purple: "bg-purple-700 text-white"
+      };
+      const el = document.createElement("div");
+      el.className = `${styles[type] || styles.info} pointer-events-auto px-3.5 py-2.5 rounded-xl shadow-lg text-xs font-bold flex items-center justify-between gap-2 transition-all duration-200`;
+      el.textContent = message;
+      container.appendChild(el);
+      setTimeout(() => {
+        el.style.opacity = "0";
+        el.style.transform = "translateY(-6px)";
+        setTimeout(() => el.remove(), 220);
+      }, 2600);
+    }
+
+    function openConfirm(title, message, onConfirm, okText = "Confirm") {
+      document.getElementById("confirm-title").textContent = title;
+      document.getElementById("confirm-message").textContent = message;
+      document.getElementById("btn-confirm-ok").textContent = okText;
+      state.confirmCallback = onConfirm;
+      document.getElementById("modal-confirm").classList.remove("hidden");
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.add("hidden");
+    }
+
+    /* =======================================================================
+       8. RENDERING: TAB 1 — LIVE TRACKER
+       ======================================================================= */
+    function renderAll() {
+      document.getElementById("header-today-badge").textContent = getLocalDateStr();
+      renderNavBadges();
+      renderLiveTab();
+      if (state.activeTab === "log") renderLogTab();
+      if (state.activeTab === "audit") renderAuditTab();
+    }
+
+    function renderNavBadges() {
+      const pendingCount = state.records.filter(r => r.status === "pending_report").length;
+      const dBadge = document.getElementById("nav-pending-badge-desktop");
+      const mBadge = document.getElementById("nav-pending-badge-mobile");
+      const pill = document.getElementById("pending-count-pill");
+
+      pill.textContent = pendingCount;
+      pill.className = pendingCount > 0
+        ? "px-2 py-0.5 rounded-full text-xs font-extrabold bg-amber-100 text-amber-800 tabular-nums"
+        : "px-2 py-0.5 rounded-full text-xs font-extrabold bg-slate-200 text-slate-700 tabular-nums";
+
+      [dBadge, mBadge].forEach(el => {
+        if (pendingCount > 0) {
+          el.textContent = pendingCount;
+          el.classList.remove("hidden");
+        } else {
+          el.classList.add("hidden");
+        }
+      });
+    }
+
+    function renderLiveTab() {
+      const todayStr = getLocalDateStr();
+      const todayRecs = state.records.filter(r => r.clinicDate === todayStr);
+      const completedToday = todayRecs.filter(r => r.status === "completed");
+
+      const activeDurs = completedToday.map(r => computeRecordMetrics(r).totalActiveMs).filter(v => v !== null);
+      const repDurs = completedToday.map(r => computeRecordMetrics(r).reportMs).filter(v => v !== null);
+      const turnToday = computeTurnoverMetrics(todayRecs, state.breakCutoffMin);
+
+      document.getElementById("live-stat-total").textContent = todayRecs.length;
+      document.getElementById("live-stat-done").textContent = `${completedToday.length} printed`;
+      document.getElementById("live-stat-avg-active").textContent = formatCompactDuration(calcStats(activeDurs).mean);
+      document.getElementById("live-stat-baseline-ref").textContent = `vs ${state.manualBaselineMin}m`;
+      document.getElementById("live-stat-avg-turn").textContent = formatCompactDuration(calcStats(turnToday.probeValues).mean);
+      document.getElementById("live-stat-avg-rep").textContent = formatCompactDuration(calcStats(repDurs).mean);
+
+      // 1. Top Post-Void Hold Bar
+      const holdRecs = state.records
+        .filter(r => r.status === "on_hold")
+        .sort((a, b) => (a.holdAt || a.scanEnd1 || 0) - (b.holdAt || b.scanEnd1 || 0));
+
+      const holdContainer = document.getElementById("hold-bar-container");
+      const holdList = document.getElementById("hold-pills-list");
+      document.getElementById("hold-count-badge").textContent = holdRecs.length;
+
+      if (holdRecs.length === 0) {
+        holdContainer.classList.add("hidden");
+      } else {
+        holdContainer.classList.remove("hidden");
+        holdList.innerHTML = holdRecs.map(rec => {
+          const waitStart = rec.holdAt || rec.scanEnd1 || rec.entry1;
+          const scanTitle = getDisplayScans(rec)[0] + (rec.scans.length > 1 ? ` +${rec.scans.length - 1}` : "");
+          return `
+            <div class="flex flex-wrap items-center gap-2 bg-white border border-purple-200 rounded-xl px-3 py-2 shadow-xs">
+              <div class="flex items-center gap-1.5 text-xs">
+                <span class="px-2 py-0.5 rounded-lg bg-purple-700 text-white font-extrabold tabular-nums">#${rec.patientNum}</span>
+                <span class="font-bold text-slate-800 max-w-[140px] truncate">${escHtml(scanTitle)}</span>
+                <span class="text-slate-400">·</span>
+                <span class="font-mono font-bold text-purple-700 tabular-nums" data-live-since="${waitStart}" data-timer-format="hold">On Hold 0m</span>
+              </div>
+              <button
+                data-action="resume-v2"
+                data-id="${escHtml(rec.id)}"
+                class="tap-btn min-h-[38px] px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-extrabold shadow-xs"
+              >Resume Visit 2</button>
+            </div>
+          `;
+        }).join("");
+      }
+
+      // 2. Active Scan Room Card
+      const inRoomRecs = state.records
+        .filter(r => r.status === "in_room")
+        .sort((a, b) => (a.entry1 || 0) - (b.entry1 || 0));
+
+      const activeContainer = document.getElementById("active-room-container");
+
+      if (inRoomRecs.length === 0) {
+        // Find most recent Scan Ended today for live Room Turnover / Idle Timer
+        let lastScanEnd = null;
+        let lastPtNum = null;
+        todayRecs.forEach(r => {
+          const endTs = Math.max(r.scanEnd1 || 0, r.scanEnd2 || 0);
+          if (endTs > 0 && (!lastScanEnd || endTs > lastScanEnd)) {
+            lastScanEnd = endTs;
+            lastPtNum = r.patientNum;
+          }
+        });
+        const nextNum = getNextPatientNumber(todayStr);
+
+        activeContainer.innerHTML = `
+          <div class="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-card text-center space-y-5">
+            ${lastScanEnd ? `
+              <div class="inline-flex flex-col items-center bg-slate-50 border border-slate-200 rounded-2xl px-6 py-3.5">
+                <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">Room Turnover / Idle Timer</span>
+                <span class="text-3xl sm:text-4xl font-mono font-extrabold text-slate-900 tabular-nums mt-0.5" data-live-since="${lastScanEnd}" data-turnover-timer="true">0:00</span>
+                <span class="text-[11px] text-slate-500 mt-1">Since Pt #${lastPtNum} Scan Ended at <strong class="font-mono text-slate-700">${formatClock(lastScanEnd)}</strong></span>
+              </div>
+            ` : `
+              <div class="py-2">
+                <div class="w-12 h-12 mx-auto rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center mb-2.5">
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                <p class="text-sm font-extrabold text-slate-800">Scan Room Ready</p>
+                <p class="text-xs text-slate-500 mt-0.5">Tap below the moment the next patient walks through the door.</p>
+              </div>
+            `}
+
+            <button
+              data-action="patient-entered"
+              class="tap-btn w-full min-h-[64px] py-4 px-5 rounded-2xl bg-gradient-to-b from-teal-600 to-teal-700 hover:from-teal-500 hover:to-teal-700 text-white shadow-action flex items-center justify-center gap-3 text-base sm:text-lg font-extrabold tracking-tight"
+            >
+              <span class="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+              </span>
+              <span>1. Patient Entered Room (#${nextNum})</span>
+            </button>
+
+            ${holdRecs.length > 0 ? `
+              <p class="text-xs text-purple-700 font-semibold">
+                Returning post-void patient? Tap <strong>Resume Visit 2</strong> in the purple bar above.
+              </p>
+            ` : ""}
+          </div>
+        `;
+      } else {
+        activeContainer.innerHTML = inRoomRecs.map(renderActiveRoomCard).join("");
+      }
+
+      // 3. Pending Reports Queue
+      const pendingRecs = state.records
+        .filter(r => r.status === "pending_report")
+        .sort((a, b) => (a.scanEnd2 || a.scanEnd1 || 0) - (b.scanEnd2 || b.scanEnd1 || 0));
+
+      const pendingContainer = document.getElementById("pending-queue-container");
+      if (pendingRecs.length === 0) {
+        pendingContainer.innerHTML = `
+          <div class="bg-white border border-dashed border-slate-300 rounded-2xl p-6 text-center">
+            <div class="w-10 h-10 mx-auto rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-2">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            </div>
+            <p class="text-xs font-extrabold text-slate-700">No Pending Reports</p>
+            <p class="text-[11px] text-slate-500 mt-0.5">Finished scans appear here immediately so you can tap <strong>Report Printed ✓</strong> on your PC or phone while the next scan runs.</p>
+          </div>
+        `;
+      } else {
+        pendingContainer.innerHTML = pendingRecs.map(renderPendingCard).join("");
+      }
+
+      updateLiveTimers();
+    }
+
+    function renderActiveRoomCard(rec) {
+      const isV2 = rec.activeVisit === 2;
+      const entryTs = isV2 ? rec.entry2 : rec.entry1;
+      const startTs = isV2 ? rec.scanStart2 : rec.scanStart1;
+      const stage = startTs ? 2 : 1; // 1 = Bed transfer / prep, 2 = Active scan & dictation
+      const otherSelected = rec.scans.includes("Other");
+
+      const stagePill = stage === 1
+        ? `<span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800">Step 1 · Prep &amp; Bed Transfer</span>`
+        : `<span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-500 animate-status-pulse"></span>Step 2 · Scanning &amp; Dictating</span>`;
+
+      const actionButtonsHtml = stage === 1
+        ? `
+          <button
+            data-action="scan-start"
+            data-id="${escHtml(rec.id)}"
+            class="tap-btn w-full min-h-[60px] py-4 px-5 rounded-2xl bg-gradient-to-b from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-600 text-white shadow-action flex items-center justify-center gap-2.5 text-lg font-extrabold tracking-tight"
+          >
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            2. Scan Started
+          </button>
+        `
+        : `
+          <div class="space-y-2.5">
+            <button
+              data-action="scan-end"
+              data-id="${escHtml(rec.id)}"
+              class="tap-btn w-full min-h-[60px] py-4 px-5 rounded-2xl bg-gradient-to-b from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-700 text-white shadow-action flex items-center justify-center gap-2.5 text-lg font-extrabold tracking-tight"
+            >
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              3. Scan Ended → Next Patient
+            </button>
+            ${!isV2 ? `
+              <button
+                data-action="hold-post-void"
+                data-id="${escHtml(rec.id)}"
+                class="tap-btn w-full min-h-[48px] py-3 px-4 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-300 text-purple-900 text-xs sm:text-sm font-extrabold flex items-center justify-center gap-2"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Hold (Post-Void) — End Visit 1 &amp; Park
+              </button>
+            ` : ""}
+          </div>
+        `;
+
+      return `
+        <div class="bg-white border-2 ${stage === 1 ? "border-teal-300" : "border-amber-300"} rounded-2xl p-4 sm:p-5 shadow-card space-y-4">
+          <!-- Header -->
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex flex-wrap items-center gap-2">
+              <button data-action="edit-record" data-id="${escHtml(rec.id)}" class="tap-btn min-h-[36px] px-3 py-1 rounded-xl bg-slate-900 text-white text-base font-extrabold tabular-nums hover:bg-slate-800" title="Tap to edit timestamps">
+                Pt #${rec.patientNum}
+              </button>
+              ${isV2 ? `<span class="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-purple-100 text-purple-800 border border-purple-200">Visit 2 · Post-Void</span>` : ""}
+              ${stagePill}
+            </div>
+
+            <div class="flex items-center gap-1 shrink-0">
+              <button data-action="undo-active" data-id="${escHtml(rec.id)}" class="tap-btn min-w-[40px] min-h-[40px] flex items-center justify-center rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100" title="Undo last step">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+              </button>
+              <button data-action="delete-record" data-id="${escHtml(rec.id)}" class="tap-btn min-w-[40px] min-h-[40px] flex items-center justify-center rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50" title="Delete entry">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Live Timestamps & Stopwatch -->
+          <div class="grid grid-cols-3 gap-2 bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
+            <div>
+              <div class="text-[10px] font-bold uppercase text-blue-700">${isV2 ? "V2 Room In" : "Room Entry"}</div>
+              <div class="text-xs sm:text-sm font-mono font-extrabold text-slate-900 tabular-nums mt-0.5">${formatClock(entryTs)}</div>
+            </div>
+            <div>
+              <div class="text-[10px] font-bold uppercase text-amber-700">${isV2 ? "V2 Scan Start" : "Scan Start"}</div>
+              <div class="text-xs sm:text-sm font-mono font-extrabold text-slate-900 tabular-nums mt-0.5">${startTs ? formatClock(startTs) : "Waiting..."}</div>
+            </div>
+            <div class="border-l border-slate-200">
+              <div class="text-[10px] font-bold uppercase text-slate-500">${stage === 1 ? "Prep Stopwatch" : "Scan Stopwatch"}</div>
+              <div class="text-base sm:text-lg font-mono font-extrabold ${stage === 1 ? "text-blue-700" : "text-amber-700"} tabular-nums" data-live-since="${stage === 1 ? entryTs : startTs}">0:00</div>
+            </div>
+          </div>
+
+          <!-- Multi-Select Scan Type Chips -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Scan Type(s) — Tap to Select</span>
+              ${rec.scans.length > 1 ? `<span class="text-[10px] font-bold text-teal-800 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-full">${rec.scans.length} Combined</span>` : ""}
+            </div>
+            <div class="flex flex-wrap gap-1.5">
+              ${SCAN_TYPES.map(scan => {
+                const active = rec.scans.includes(scan);
+                return `
+                  <button
+                    type="button"
+                    data-action="toggle-scan"
+                    data-id="${escHtml(rec.id)}"
+                    data-scan="${escHtml(scan)}"
+                    class="tap-btn min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-bold border transition ${
+                      active
+                        ? "bg-teal-600 text-white border-teal-600 shadow-xs"
+                        : "bg-white text-slate-700 border-slate-200 hover:border-teal-400 hover:bg-teal-50/40"
+                    }"
+                  >${escHtml(scan)}</button>
+                `;
+              }).join("")}
+            </div>
+            ${otherSelected ? `
+              <input
+                type="text"
+                data-action="other-scan-input"
+                data-id="${escHtml(rec.id)}"
+                value="${escHtml(rec.otherScanText || "")}"
+                placeholder="Type custom scan name..."
+                class="mt-2 w-full min-h-[40px] rounded-xl border border-teal-300 bg-teal-50/30 px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+              />
+            ` : ""}
+          </div>
+
+          <!-- Primary Workflow Button -->
+          <div class="pt-1">${actionButtonsHtml}</div>
+
+          <!-- Compact 1-Tap Delay Tags -->
+          <div class="pt-2 border-t border-slate-100">
+            <div class="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Delay Tags (Optional 1-Tap)</div>
+            <div class="flex flex-wrap gap-1.5">
+              ${DELAY_TAGS.map(tag => {
+                const active = rec.delayTags.includes(tag);
+                return `
+                  <button
+                    type="button"
+                    data-action="toggle-tag"
+                    data-id="${escHtml(rec.id)}"
+                    data-tag="${escHtml(tag)}"
+                    class="tap-btn min-h-[34px] px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition ${
+                      active
+                        ? "bg-rose-600 text-white border-rose-600"
+                        : "bg-slate-50 text-slate-600 border-slate-200 hover:border-rose-300"
+                    }"
+                  >${active ? "✓ " : "+ "}${escHtml(tag)}</button>
+                `;
+              }).join("")}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderPendingCard(rec) {
+      const scanEndTs = rec.scanEnd2 || rec.scanEnd1;
+      const m = computeRecordMetrics(rec);
+
+      return `
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-card space-y-3 hover:border-emerald-300 transition">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <div class="flex flex-wrap items-center gap-1.5">
+                <button data-action="edit-record" data-id="${escHtml(rec.id)}" class="px-2.5 py-0.5 rounded-lg bg-slate-900 text-white text-xs font-extrabold tabular-nums">
+                  Pt #${rec.patientNum}
+                </button>
+                ${rec.isSplitVisit ? `<span class="px-1.5 py-0.5 rounded-md bg-purple-100 text-purple-800 text-[10px] font-bold">Post-Void</span>` : ""}
+                <span class="text-xs font-bold text-slate-800 truncate">${escHtml(getDisplayScans(rec).join(" + "))}</span>
+              </div>
+              <div class="text-[11px] text-slate-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span>Scan ended <strong class="font-mono text-slate-700">${formatClock(scanEndTs)}</strong></span>
+                ${m.scanMs !== null ? `<span>• Scan ${formatCompactDuration(m.scanMs)}</span>` : ""}
+              </div>
+            </div>
+
+            <div class="shrink-0 text-right">
+              <div class="text-[9px] font-bold uppercase text-slate-400">Since Scan End</div>
+              <span
+                class="inline-block px-2 py-0.5 rounded-lg text-xs font-mono font-extrabold tabular-nums bg-slate-100 text-slate-700"
+                data-live-since="${scanEndTs}"
+                data-report-wait="true"
+              >0:00</span>
+            </div>
+          </div>
+
+          <!-- Compact Delay Tag Toggles -->
+          <div class="flex flex-wrap gap-1">
+            ${DELAY_TAGS.map(tag => {
+              const active = rec.delayTags.includes(tag);
+              return `
+                <button
+                  type="button"
+                  data-action="toggle-tag"
+                  data-id="${escHtml(rec.id)}"
+                  data-tag="${escHtml(tag)}"
+                  class="tap-btn px-2 py-1 rounded-lg text-[10px] font-semibold border transition ${
+                    active
+                      ? "bg-rose-600 text-white border-rose-600"
+                      : "bg-slate-50 text-slate-500 border-slate-200 hover:border-rose-300"
+                  }"
+                >${active ? "✓ " : ""}${escHtml(tag)}</button>
+              `;
+            }).join("")}
+          </div>
+
+          <!-- Step 4 Primary Print Action + Post-Void Hold Icon -->
+          <div class="flex items-center gap-2 pt-0.5">
+            <button
+              data-action="report-printed"
+              data-id="${escHtml(rec.id)}"
+              class="tap-btn flex-1 min-h-[48px] py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-extrabold shadow-sm flex items-center justify-center gap-2"
+            >
+              <span>4. Report Printed ✓</span>
+            </button>
+
+            ${!rec.entry2 ? `
+              <button
+                data-action="hold-post-void"
+                data-id="${escHtml(rec.id)}"
+                class="tap-btn min-h-[48px] px-3 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-800 text-xs font-bold shrink-0 flex items-center gap-1"
+                title="Park patient for Post-Void Return (Visit 2)"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Hold
+              </button>
+            ` : ""}
+          </div>
+        </div>
+      `;
+    }
+
+    /** 1-second stopwatch updater without disturbing DOM or inputs */
+    function updateLiveTimers() {
+      const now = Date.now();
+      const clockEl = document.getElementById("live-clock-display");
+      if (clockEl) clockEl.textContent = formatClock(now);
+
+      document.querySelectorAll("[data-live-since]").forEach(el => {
+        const since = Number(el.getAttribute("data-live-since"));
+        if (!since || isNaN(since)) return;
+        const diff = Math.max(0, now - since);
+
+        if (el.getAttribute("data-timer-format") === "hold") {
+          const mins = Math.floor(diff / 60000);
+          el.textContent = mins < 60 ? `On Hold ${mins}m` : `On Hold ${Math.floor(mins / 60)}h ${mins % 60}m`;
+          return;
+        }
+
+        el.textContent = formatCompactDuration(diff);
+
+        if (el.getAttribute("data-report-wait") === "true") {
+          el.classList.remove("bg-slate-100", "text-slate-700", "bg-amber-100", "text-amber-800", "bg-rose-100", "text-rose-700");
+          if (diff >= 6 * 60000) el.classList.add("bg-rose-100", "text-rose-700");
+          else if (diff >= 3 * 60000) el.classList.add("bg-amber-100", "text-amber-800");
+          else el.classList.add("bg-slate-100", "text-slate-700");
+        }
+
+        if (el.getAttribute("data-turnover-timer") === "true") {
+          el.classList.remove("text-slate-900", "text-amber-600", "text-rose-600");
+          if (diff >= 6 * 60000) el.classList.add("text-rose-600");
+          else if (diff >= 3 * 60000) el.classList.add("text-amber-600");
+          else el.classList.add("text-slate-900");
+        }
+      });
+    }
+
+    /* =======================================================================
+       9. RENDERING: TAB 2 — PATIENT LOG & EDITOR
+       ======================================================================= */
+    function populateLogFilterDropdowns() {
+      const scanSel = document.getElementById("log-scan-filter");
+      const tagSel = document.getElementById("log-tag-filter");
+      scanSel.innerHTML = `<option value="all">All Scan Types</option>` +
+        SCAN_TYPES.map(s => `<option value="${escHtml(s)}">${escHtml(s)}</option>`).join("");
+      tagSel.innerHTML = `<option value="all">All Delay Tags</option>` +
+        DELAY_TAGS.map(t => `<option value="${escHtml(t)}">${escHtml(t)}</option>`).join("");
+    }
+
+    function getFilteredLogRecords() {
+      const today = getLocalDateStr();
+      const sevenAgo = getOffsetDateStr(-6);
+      return state.records.filter(r => {
+        if (state.logDateFilter === "today" && r.clinicDate !== today) return false;
+        if (state.logDateFilter === "7days" && (r.clinicDate < sevenAgo || r.clinicDate > today)) return false;
+        if (state.logDateFilter === "custom" && state.logSpecificDate && r.clinicDate !== state.logSpecificDate) return false;
+        if (state.logScanFilter !== "all" && !r.scans.includes(state.logScanFilter)) return false;
+        if (state.logTagFilter !== "all" && !r.delayTags.includes(state.logTagFilter)) return false;
+        return true;
+      }).sort((a, b) => {
+        if (a.clinicDate !== b.clinicDate) return b.clinicDate.localeCompare(a.clinicDate);
+        return b.patientNum - a.patientNum;
+      });
+    }
+
+    function renderLogTab() {
+      const filtered = getFilteredLogRecords();
+      document.getElementById("log-record-count").textContent = `${filtered.length} case${filtered.length === 1 ? "" : "s"}`;
+      const container = document.getElementById("log-list-container");
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white border border-slate-200 rounded-2xl p-10 text-center shadow-card">
+            <p class="text-sm font-bold text-slate-700">No patient records match these filters.</p>
+            <p class="text-xs text-slate-500 mt-1">Track patients in the Live Tracker or widen your date/scan filter.</p>
+          </div>
+        `;
+        return;
+      }
+
+      const statusMeta = {
+        in_room: { label: "In Room", cls: "bg-blue-100 text-blue-800" },
+        on_hold: { label: "On Hold", cls: "bg-purple-100 text-purple-800" },
+        pending_report: { label: "Pending Print", cls: "bg-amber-100 text-amber-800" },
+        completed: { label: "Completed", cls: "bg-emerald-100 text-emerald-800" }
+      };
+
+      const desktopTable = `
+        <div class="hidden lg:block bg-white border border-slate-200 rounded-2xl shadow-card overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500">
+                <th class="py-3 px-3.5">Pt # / Date</th>
+                <th class="py-3 px-3">Scan(s)</th>
+                <th class="py-3 px-3">Visit</th>
+                <th class="py-3 px-3 text-right">Room→Scan</th>
+                <th class="py-3 px-3 text-right">Scan Dur</th>
+                <th class="py-3 px-3 text-right">Scan→Print</th>
+                <th class="py-3 px-3 text-right">Total Active</th>
+                <th class="py-3 px-3">Delay Tags</th>
+                <th class="py-3 px-3.5 text-right">Status</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 text-xs">
+              ${filtered.map(rec => {
+                const m = computeRecordMetrics(rec);
+                const st = statusMeta[rec.status] || statusMeta.completed;
+                return `
+                  <tr data-action="edit-record" data-id="${escHtml(rec.id)}" class="hover:bg-teal-50/40 cursor-pointer transition">
+                    <td class="py-3 px-3.5 whitespace-nowrap">
+                      <div class="font-extrabold text-slate-900">Pt #${rec.patientNum} ${rec.isDemo ? '<span class="ml-1 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 text-[9px] font-bold">DEMO</span>' : ""}</div>
+                      <div class="text-[10px] font-mono text-slate-400">${rec.clinicDate} · ${formatClock(rec.entry1)}</div>
+                    </td>
+                    <td class="py-3 px-3 max-w-[210px]">
+                      <div class="font-semibold text-slate-800 truncate">${escHtml(getDisplayScans(rec).join(", "))}</div>
+                      ${rec.notes ? `<div class="text-[10px] text-slate-400 truncate">${escHtml(rec.notes)}</div>` : ""}
+                    </td>
+                    <td class="py-3 px-3 whitespace-nowrap">
+                      ${rec.isSplitVisit
+                        ? `<span class="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 text-[10px] font-bold">V1 + V2</span>`
+                        : `<span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-semibold">Single</span>`}
+                    </td>
+                    <td class="py-3 px-3 font-mono text-right tabular-nums text-blue-700">${formatDuration(m.prepMs)}</td>
+                    <td class="py-3 px-3 font-mono text-right tabular-nums text-amber-700">${formatDuration(m.scanMs)}</td>
+                    <td class="py-3 px-3 font-mono text-right tabular-nums text-emerald-700">${formatDuration(m.reportMs)}</td>
+                    <td class="py-3 px-3 font-mono text-right font-extrabold tabular-nums text-slate-900">${formatDuration(m.totalActiveMs)}</td>
+                    <td class="py-3 px-3">
+                      <div class="flex flex-wrap gap-1 max-w-[180px]">
+                        ${rec.delayTags.map(tg => `<span class="px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-semibold">${escHtml(tg)}</span>`).join("")}
+                      </div>
+                    </td>
+                    <td class="py-3 px-3.5 text-right whitespace-nowrap">
+                      <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${st.cls}">${st.label}</span>
+                    </td>
+                  </tr>
+                `;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      const mobileCards = `
+        <div class="lg:hidden space-y-2.5">
+          ${filtered.map(rec => {
+            const m = computeRecordMetrics(rec);
+            const st = statusMeta[rec.status] || statusMeta.completed;
+            return `
+              <div data-action="edit-record" data-id="${escHtml(rec.id)}" class="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-card space-y-2.5 cursor-pointer active:bg-slate-50">
+                <div class="flex items-start justify-between gap-2">
+                  <div>
+                    <div class="flex flex-wrap items-center gap-1.5">
+                      <span class="font-extrabold text-sm text-slate-900">Pt #${rec.patientNum}</span>
+                      <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${st.cls}">${st.label}</span>
+                      ${rec.isSplitVisit ? `<span class="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-purple-100 text-purple-800">V1+V2</span>` : ""}
+                      ${rec.isDemo ? `<span class="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-indigo-50 text-indigo-600">DEMO</span>` : ""}
+                    </div>
+                    <div class="text-xs font-semibold text-slate-700 mt-0.5">${escHtml(getDisplayScans(rec).join(" + "))}</div>
+                  </div>
+                  <div class="text-right shrink-0">
+                    <div class="text-[10px] font-mono text-slate-400">${rec.clinicDate}</div>
+                    <div class="text-sm font-mono font-extrabold text-slate-900 tabular-nums">${formatDuration(m.totalActiveMs)}</div>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1.5 bg-slate-50 rounded-xl p-2 text-center border border-slate-100">
+                  <div>
+                    <div class="text-[9px] font-bold uppercase text-blue-600">Room→Scan</div>
+                    <div class="text-xs font-mono font-bold text-slate-800">${formatDuration(m.prepMs)}</div>
+                  </div>
+                  <div>
+                    <div class="text-[9px] font-bold uppercase text-amber-600">Scan Dur</div>
+                    <div class="text-xs font-mono font-bold text-slate-800">${formatDuration(m.scanMs)}</div>
+                  </div>
+                  <div>
+                    <div class="text-[9px] font-bold uppercase text-emerald-600">Scan→Print</div>
+                    <div class="text-xs font-mono font-bold text-slate-800">${formatDuration(m.reportMs)}</div>
+                  </div>
+                </div>
+
+                ${rec.delayTags.length > 0 ? `
+                  <div class="flex flex-wrap gap-1">
+                    ${rec.delayTags.map(tg => `<span class="px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-semibold">${escHtml(tg)}</span>`).join("")}
+                  </div>
+                ` : ""}
+
+                <div class="flex items-center justify-between text-[10px] font-mono text-slate-500">
+                  <span>In ${formatClock(rec.entry1)} → Print ${formatClock(rec.reportPrinted)}</span>
+                  <span class="text-teal-700 font-sans font-bold">Tap to Edit</span>
+                </div>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      `;
+
+      container.innerHTML = desktopTable + mobileCards;
+    }
+
+    /* =======================================================================
+       10. RENDERING: TAB 3 — AUDIT REPORT & ANALYTICS
+       ======================================================================= */
+    function getAuditFilteredRecords() {
+      const today = getLocalDateStr();
+      const sevenAgo = getOffsetDateStr(-6);
+      return state.records.filter(r => {
+        if (state.auditRange === "today") return r.clinicDate === today;
+        if (state.auditRange === "7days") return r.clinicDate >= sevenAgo && r.clinicDate <= today;
+        if (state.auditRange === "custom") {
+          const okStart = !state.auditStartDate || r.clinicDate >= state.auditStartDate;
+          const okEnd = !state.auditEndDate || r.clinicDate <= state.auditEndDate;
+          return okStart && okEnd;
+        }
+        return true;
+      });
+    }
+
+    function getAuditRangeLabel() {
+      const today = getLocalDateStr();
+      if (state.auditRange === "today") return `Today (${today})`;
+      if (state.auditRange === "7days") return `Last 7 Days (${getOffsetDateStr(-6)} to ${today})`;
+      if (state.auditRange === "custom") return `${state.auditStartDate || "Start"} to ${state.auditEndDate || "Present"}`;
+      return "All Recorded Data";
+    }
+
+    function buildAuditAnalytics(records) {
+      const list = records.map(r => ({ rec: r, m: computeRecordMetrics(r) }));
+      const turnover = computeTurnoverMetrics(records, state.breakCutoffMin);
+
+      const prepStats = calcStats(list.map(x => x.m.prepMs));
+      const scanStats = calcStats(list.map(x => x.m.scanMs));
+      const reportStats = calcStats(list.map(x => x.m.reportMs));
+      const totalActiveStats = calcStats(list.map(x => x.m.totalActiveMs));
+      const doorTurnoverStats = calcStats(turnover.doorValues);
+      const probeTurnoverStats = calcStats(turnover.probeValues);
+      const waitGapStats = calcStats(list.map(x => x.m.waitGapMs));
+
+      const stageRows = [
+        { key: "prep", label: "1. Room Entry → Scan Start (Bed Transfer & Prep)", dot: "bg-blue-500", stats: prepStats },
+        { key: "scan", label: "2. Scan Start → Scan End (Active Scan & Dictation, V1+V2)", dot: "bg-amber-500", stats: scanStats },
+        { key: "report", label: "3. Scan End → Report Printed (GEM, VBA Edit, Verify & Print)", dot: "bg-emerald-500", stats: reportStats },
+        { key: "total", label: "4. Total Active Patient Time (Entry → Printed, Excl. Hold Wait)", dot: "bg-slate-900", stats: totalActiveStats },
+        { key: "door", label: `5. Door-to-Door Turnover (Prev End → Next Entry, ≤${state.breakCutoffMin}m)`, dot: "bg-cyan-500", stats: doorTurnoverStats },
+        { key: "probe", label: `6. Probe-to-Probe Idle Gap (Prev End → Next Scan Start, ≤${state.breakCutoffMin}m)`, dot: "bg-indigo-600", stats: probeTurnoverStats }
+      ];
+
+      if (waitGapStats.n > 0) {
+        stageRows.push({
+          key: "waitGap",
+          label: "7. Post-Void Waiting Gap (Visit 1 End → Visit 2 Entry)",
+          dot: "bg-purple-500",
+          stats: waitGapStats
+        });
+      }
+
+      // Per-Scan-Type Breakdown
+      const scanBuckets = {};
+      list.forEach(({ rec, m }) => {
+        const scans = rec.scans.length > 0 ? rec.scans : ["Unassigned"];
+        scans.forEach(s => {
+          const name = s === "Other" && rec.otherScanText ? `Other (${rec.otherScanText})` : s;
+          if (!scanBuckets[name]) scanBuckets[name] = { name, count: 0, prep: [], scan: [], report: [], total: [] };
+          scanBuckets[name].count++;
+          if (m.prepMs !== null) scanBuckets[name].prep.push(m.prepMs);
+          if (m.scanMs !== null) scanBuckets[name].scan.push(m.scanMs);
+          if (m.reportMs !== null) scanBuckets[name].report.push(m.reportMs);
+          if (m.totalActiveMs !== null) scanBuckets[name].total.push(m.totalActiveMs);
+        });
+      });
+
+      const scanRows = Object.values(scanBuckets)
+        .map(b => ({
+          name: b.name,
+          count: b.count,
+          prep: calcStats(b.prep),
+          scan: calcStats(b.scan),
+          report: calcStats(b.report),
+          total: calcStats(b.total)
+        }))
+        .sort((a, b) => (b.total.mean || 0) - (a.total.mean || 0) || b.count - a.count);
+
+      // Delay Tag Impact Analysis (Tag Present vs Overall Average)
+      const overallMeanMs = totalActiveStats.mean;
+      const tagRows = DELAY_TAGS.map(tag => {
+        const tagged = list.filter(x => x.rec.delayTags.includes(tag));
+        const taggedStats = calcStats(tagged.map(x => x.m.totalActiveMs));
+        const deltaMs = (taggedStats.mean !== null && overallMeanMs !== null)
+          ? (taggedStats.mean - overallMeanMs)
+          : null;
+        return {
+          tag,
+          count: tagged.length,
+          pct: records.length > 0 ? (tagged.length / records.length) * 100 : 0,
+          meanWithTag: taggedStats.mean,
+          overallMean: overallMeanMs,
+          deltaMs
+        };
+      }).filter(t => t.count > 0).sort((a, b) => b.count - a.count);
+
+      // Automated Bottleneck Insight Generator
+      const bottleneckInsight = generateBottleneckInsight({
+        prepStats, scanStats, reportStats, probeTurnoverStats, totalActiveStats, tagRows
+      });
+
+      return {
+        totalCases: records.length,
+        splitCases: records.filter(r => r.isSplitVisit).length,
+        completedCases: records.filter(r => r.status === "completed").length,
+        prepStats, scanStats, reportStats, totalActiveStats,
+        doorTurnoverStats, probeTurnoverStats, waitGapStats,
+        stageRows, scanRows, tagRows, bottleneckInsight, turnover
+      };
+    }
+
+    function generateBottleneckInsight({ prepStats, scanStats, reportStats, probeTurnoverStats, totalActiveStats, tagRows }) {
+      const candidates = [
+        { key: "prep", label: "Bed Transfer & Prep (Room Entry → Scan Start)", mean: prepStats.mean },
+        { key: "probe", label: "Probe-to-Probe Room Turnover (Patient Exit + Entry + Bed Transfer)", mean: probeTurnoverStats.mean },
+        { key: "scan", label: "Active Scan & Dictation (Scan Start → Scan End)", mean: scanStats.mean },
+        { key: "report", label: "Post-Scan GEM / Word-VBA Editing / Verification / Printing", mean: reportStats.mean }
+      ].filter(c => c.mean !== null);
+
+      if (candidates.length === 0) {
+        return {
+          headline: "Waiting for completed cases",
+          body: "Complete a few full patient journeys (Room Entry → Scan Start → Scan End → Report Printed) to generate an automated bottleneck diagnosis."
+        };
+      }
+
+      const sorted = [...candidates].sort((a, b) => b.mean - a.mean);
+      const top = sorted[0];
+
+      const nonScanCandidates = candidates.filter(c => c.key !== "scan").sort((a, b) => b.mean - a.mean);
+      const topLag = nonScanCandidates[0] || top;
+
+      let comparisonText = "";
+      if (probeTurnoverStats.mean !== null && reportStats.mean !== null) {
+        const probeMin = (probeTurnoverStats.mean / 60000).toFixed(2);
+        const repMin = (reportStats.mean / 60000).toFixed(2);
+        if (reportStats.mean > probeTurnoverStats.mean * 1.15) {
+          comparisonText = `Post-scan GEM/VBA/Verification reporting (${repMin} min) is currently taking longer than Probe-to-Probe bed turnover (${probeMin} min). Focusing on GEM prompt speed, VBA automation, or batch verification will recover the most time.`;
+        } else if (probeTurnoverStats.mean > reportStats.mean * 1.15) {
+          comparisonText = `Probe-to-Probe room turnover (${probeMin} min) exceeds Post-scan reporting lag (${repMin} min). This confirms that patient exit, calling the next patient, and bed transfer are the biggest non-scanning bottleneck.`;
+        } else {
+          comparisonText = `Probe-to-Probe room turnover (${probeMin} min) and Post-scan GEM/VBA reporting (${repMin} min) contribute nearly equally to workflow lag.`;
+        }
+      }
+
+      let baselineText = "";
+      if (totalActiveStats.mean !== null) {
+        const deltaMin = (totalActiveStats.mean / 60000) - state.manualBaselineMin;
+        if (deltaMin > 0.1) {
+          baselineText = ` Overall turnaround is running +${deltaMin.toFixed(1)} min above your ${state.manualBaselineMin}m manual baseline.`;
+        } else if (deltaMin < -0.1) {
+          baselineText = ` Overall turnaround is ${Math.abs(deltaMin).toFixed(1)} min faster than your ${state.manualBaselineMin}m manual baseline.`;
+        }
+      }
+
+      const topTag = tagRows.length > 0 ? ` Most frequent delay tag: "${tagRows[0].tag}" (${tagRows[0].count} cases).` : "";
+
+      return {
+        headline: `Primary Non-Scanning Lag: ${topLag.label} (${formatDuration(topLag.mean)} / ${formatDecMin(topLag.mean)})`,
+        body: `${comparisonText}${baselineText}${topTag}`.trim()
+      };
+    }
+
+    function renderAuditTab() {
+      const records = getAuditFilteredRecords();
+      const container = document.getElementById("audit-dashboard-content");
+
+      // Sync Print Header Metadata
+      document.getElementById("print-room-code").textContent = state.roomId;
+      document.getElementById("print-date-range").textContent = getAuditRangeLabel();
+      document.getElementById("print-generated-at").textContent = new Date().toLocaleString();
+
+      if (records.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white border border-slate-200 rounded-2xl p-10 text-center shadow-card space-y-2">
+            <h3 class="text-sm font-extrabold text-slate-800">No Audit Records in Selected Range</h3>
+            <p class="text-xs text-slate-500 max-w-md mx-auto">Log live cases in the Live Tracker tab or click the top-right Sync badge → <strong>Load 5-Day Demo Data</strong> to inspect the complete analytics report and CSV/PDF exports.</p>
+          </div>
+        `;
+        return;
+      }
+
+      const A = buildAuditAnalytics(records);
+
+      // Baseline delta pill
+      let baselinePill = `<span class="text-[11px] text-slate-400">Awaiting completed cases</span>`;
+      if (A.totalActiveStats.mean !== null) {
+        const avgMin = A.totalActiveStats.mean / 60000;
+        const delta = avgMin - state.manualBaselineMin;
+        if (delta > 0.05) {
+          baselinePill = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-rose-100 text-rose-700">+${delta.toFixed(1)} min vs ${state.manualBaselineMin}m baseline</span>`;
+        } else if (delta < -0.05) {
+          baselinePill = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-100 text-emerald-700">${delta.toFixed(1)} min vs ${state.manualBaselineMin}m baseline</span>`;
+        } else {
+          baselinePill = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-teal-100 text-teal-800">Matches ${state.manualBaselineMin}m baseline</span>`;
+        }
+      }
+
+      // Visual Time Breakdown Bar (Prep % / Scan % / Reporting %)
+      const pMean = A.prepStats.mean || 0;
+      const sMean = A.scanStats.mean || 0;
+      const rMean = A.reportStats.mean || 0;
+      const sumStages = Math.max(1, pMean + sMean + rMean);
+      const pPct = (pMean / sumStages) * 100;
+      const sPct = (sMean / sumStages) * 100;
+      const rPct = (rMean / sumStages) * 100;
+
+      container.innerHTML = `
+        <!-- 1. EXECUTIVE KPI CARDS -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="print-card bg-white border border-slate-200 rounded-2xl p-4 shadow-card">
+            <div class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Total Cases</div>
+            <div class="text-2xl sm:text-3xl font-extrabold text-slate-900 tabular-nums mt-1">${A.totalCases}</div>
+            <div class="text-[11px] text-slate-500 mt-1">${A.completedCases} completed · <span class="text-purple-700 font-semibold">${A.splitCases} post-void</span></div>
+          </div>
+
+          <div class="print-card bg-white border border-slate-200 rounded-2xl p-4 shadow-card">
+            <div class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Avg Active Time</div>
+            <div class="text-2xl sm:text-3xl font-extrabold text-slate-900 font-mono tabular-nums mt-1">${formatDuration(A.totalActiveStats.mean)}</div>
+            <div class="mt-1">${baselinePill}</div>
+          </div>
+
+          <div class="print-card bg-white border border-slate-200 rounded-2xl p-4 shadow-card">
+            <div class="text-[11px] font-bold uppercase tracking-wide text-indigo-600">Avg Probe-to-Probe</div>
+            <div class="text-2xl sm:text-3xl font-extrabold text-indigo-700 font-mono tabular-nums mt-1">${formatDuration(A.probeTurnoverStats.mean)}</div>
+            <div class="text-[11px] text-slate-500 mt-1">SD ${formatDuration(A.probeTurnoverStats.sd)} · n=${A.probeTurnoverStats.n} transitions</div>
+          </div>
+
+          <div class="print-card bg-white border border-slate-200 rounded-2xl p-4 shadow-card">
+            <div class="text-[11px] font-bold uppercase tracking-wide text-emerald-600">Avg Reporting / Print Lag</div>
+            <div class="text-2xl sm:text-3xl font-extrabold text-emerald-700 font-mono tabular-nums mt-1">${formatDuration(A.reportStats.mean)}</div>
+            <div class="text-[11px] text-slate-500 mt-1">SD ${formatDuration(A.reportStats.sd)} · Scan End → Print</div>
+          </div>
+        </div>
+
+        <!-- 2. AUTOMATED BOTTLENECK INSIGHT BANNER -->
+        <div class="print-card bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+          <div class="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 mt-0.5">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <div class="space-y-1 text-xs text-slate-800">
+            <div class="text-sm font-extrabold text-amber-950">${escHtml(A.bottleneckInsight.headline)}</div>
+            <p class="leading-relaxed text-slate-700">${escHtml(A.bottleneckInsight.body)}</p>
+          </div>
+        </div>
+
+        <!-- 3. VISUAL TIME BREAKDOWN BAR -->
+        <div class="print-card bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-card space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 class="text-sm font-extrabold text-slate-900">Active Patient Time Breakdown (%)</h3>
+              <p class="text-[11px] text-slate-500">Proportional share of Bed Transfer/Prep vs Active Scan/Dictation vs Post-Scan GEM/Edit/Print</p>
+            </div>
+            <div class="text-xs font-mono font-extrabold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-lg">
+              Sum of Means: ${formatDuration(pMean + sMean + rMean)} (${formatDecMin(pMean + sMean + rMean)})
+            </div>
+          </div>
+
+          <div class="h-10 w-full rounded-xl overflow-hidden flex bg-slate-100 border border-slate-200">
+            ${pMean > 0 ? `<div style="width:${pPct.toFixed(1)}%" class="bg-blue-500 text-white text-[11px] font-bold flex items-center justify-center truncate px-1.5" title="Prep: ${formatDuration(pMean)}">${pPct >= 10 ? `${pPct.toFixed(0)}%` : ""}</div>` : ""}
+            ${sMean > 0 ? `<div style="width:${sPct.toFixed(1)}%" class="bg-amber-500 text-white text-[11px] font-bold flex items-center justify-center truncate px-1.5" title="Scan: ${formatDuration(sMean)}">${sPct >= 10 ? `${sPct.toFixed(0)}%` : ""}</div>` : ""}
+            ${rMean > 0 ? `<div style="width:${rPct.toFixed(1)}%" class="bg-emerald-500 text-white text-[11px] font-bold flex items-center justify-center truncate px-1.5" title="Report: ${formatDuration(rMean)}">${rPct >= 10 ? `${rPct.toFixed(0)}%` : ""}</div>` : ""}
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-xs">
+            <div class="flex items-center justify-between bg-blue-50/70 border border-blue-100 rounded-xl px-3 py-2">
+              <span class="flex items-center gap-2 font-semibold text-blue-900"><span class="w-2.5 h-2.5 rounded-sm bg-blue-500"></span>Prep / Bed-In</span>
+              <span class="font-mono font-bold text-blue-900">${formatDuration(pMean)} (${pPct.toFixed(1)}%)</span>
+            </div>
+            <div class="flex items-center justify-between bg-amber-50/70 border border-amber-100 rounded-xl px-3 py-2">
+              <span class="flex items-center gap-2 font-semibold text-amber-900"><span class="w-2.5 h-2.5 rounded-sm bg-amber-500"></span>Active Scan</span>
+              <span class="font-mono font-bold text-amber-900">${formatDuration(sMean)} (${sPct.toFixed(1)}%)</span>
+            </div>
+            <div class="flex items-center justify-between bg-emerald-50/70 border border-emerald-100 rounded-xl px-3 py-2">
+              <span class="flex items-center gap-2 font-semibold text-emerald-900"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-500"></span>GEM / Edit / Print</span>
+              <span class="font-mono font-bold text-emerald-900">${formatDuration(rMean)} (${rPct.toFixed(1)}%)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. STAGE-BY-STAGE STATISTICS TABLE -->
+        <div class="print-card bg-white border border-slate-200 rounded-2xl shadow-card overflow-hidden">
+          <div class="px-4 sm:px-5 py-3.5 border-b border-slate-200">
+            <h3 class="text-sm font-extrabold text-slate-900">Stage-by-Stage Time Statistics</h3>
+            <p class="text-[11px] text-slate-500">Durations formatted as mm:ss (decimal minutes in parentheses). Sample SD uses n−1 for n &gt; 1.</p>
+          </div>
+          <div class="print-table-wrap overflow-x-auto">
+            <table class="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr class="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase text-slate-500">
+                  <th class="py-2.5 px-4">Clinical Workflow Stage</th>
+                  <th class="py-2.5 px-2.5 text-right">n</th>
+                  <th class="py-2.5 px-2.5 text-right">Mean</th>
+                  <th class="py-2.5 px-2.5 text-right">Median</th>
+                  <th class="py-2.5 px-2.5 text-right">Min</th>
+                  <th class="py-2.5 px-2.5 text-right">Max</th>
+                  <th class="py-2.5 px-4 text-right">Sample SD</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                ${A.stageRows.map(row => {
+                  const s = row.stats;
+                  const highlight = row.key === "total" || row.key === "probe" ? "bg-slate-50/80 font-bold" : "";
+                  return `
+                    <tr class="${highlight}">
+                      <td class="py-2.5 px-4 text-slate-800">
+                        <div class="flex items-center gap-2">
+                          <span class="w-2.5 h-2.5 rounded-full ${row.dot} shrink-0"></span>
+                          <span>${escHtml(row.label)}</span>
+                        </div>
+                      </td>
+                      <td class="py-2.5 px-2.5 text-right font-mono tabular-nums text-slate-600">${s.n}</td>
+                      <td class="py-2.5 px-2.5 text-right font-mono tabular-nums font-bold text-slate-900 whitespace-nowrap">
+                        ${formatDuration(s.mean)} <span class="text-[10px] text-slate-400 font-normal">(${formatDecMin(s.mean)})</span>
+                      </td>
+                      <td class="py-2.5 px-2.5 text-right font-mono tabular-nums text-slate-700 whitespace-nowrap">
+                        ${formatDuration(s.median)} <span class="text-[10px] text-slate-400">(${formatDecMin(s.median)})</span>
+                      </td>
+                      <td class="py-2.5 px-2.5 text-right font-mono tabular-nums text-emerald-700">${formatDuration(s.min)}</td>
+                      <td class="py-2.5 px-2.5 text-right font-mono tabular-nums text-rose-700">${formatDuration(s.max)}</td>
+                      <td class="py-2.5 px-4 text-right font-mono tabular-nums text-slate-700 whitespace-nowrap">
+                        ${formatDuration(s.sd)} <span class="text-[10px] text-slate-400">(${formatDecMin(s.sd)})</span>
+                      </td>
+                    </tr>
+                  `;
+                }).join("")}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 5. PER-SCAN-TYPE BREAKDOWN TABLE -->
+        <div class="print-card bg-white border border-slate-200 rounded-2xl shadow-card overflow-hidden">
+          <div class="px-4 sm:px-5 py-3.5 border-b border-slate-200">
+            <h3 class="text-sm font-extrabold text-slate-900">Per-Scan-Type Breakdown</h3>
+            <p class="text-[11px] text-slate-500">Count, Mean Scan Time, Mean Total Active Time, Min, Max, and Sample SD by ultrasound modality</p>
+          </div>
+          <div class="print-table-wrap overflow-x-auto">
+            <table class="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr class="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase text-slate-500">
+                  <th class="py-2.5 px-4">Scan Type</th>
+                  <th class="py-2.5 px-2.5 text-right">Count</th>
+                  <th class="py-2.5 px-2.5 text-right">Mean Prep</th>
+                  <th class="py-2.5 px-2.5 text-right">Mean Scan</th>
+                  <th class="py-2.5 px-2.5 text-right">Mean Report</th>
+                  <th class="py-2.5 px-2.5 text-right">Mean Total</th>
+                  <th class="py-2.5 px-2.5 text-right">Min</th>
+                  <th class="py-2.5 px-2.5 text-right">Max</th>
+                  <th class="py-2.5 px-4 text-right">Sample SD</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                ${A.scanRows.map(r => `
+                  <tr>
+                    <td class="py-2.5 px-4 font-bold text-slate-800">${escHtml(r.name)}</td>
+                    <td class="py-2.5 px-2.5 text-right font-mono tabular-nums text-slate-600">${r.count}</td>
+                    <td class="py-2.5 px-2.5 text-right font-mono tabular-nums text-blue-700">${formatDuration(r.prep.mean)}</td>
+                    <td class="py-2.5 px-2.5 text-right font-mono tabular-nums text-amber-700 font-semibold">${formatDuration(r.scan.mean)}</td>
+                    <td class="py-2.5 px-2.5 text-right font-mono tabular-nums text-emerald-700">${formatDuration(r.report.mean)}</td>
+                    <td class="py-2.5 px-2.5 text-right font-mono tabular-nums font-extrabold text-slate-900 whitespace-nowrap">
+                      ${formatDuration(r.total.mean)} <span class="text-[10px] text-slate-400 font-normal">(${formatDecMin(r.total.mean)})</span>
+                    </td>
+                    <td class="py-2.5 px-2.5 text-right font-mono tabular-nums text-slate-600">${formatDuration(r.total.min)}</td>
+                    <td class="py-2.5 px-2.5 text-right font-mono tabular-nums text-slate-600">${formatDuration(r.total.max)}</td>
+                    <td class="py-2.5 px-4 text-right font-mono tabular-nums text-slate-600">${formatDuration(r.total.sd)}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 6. DELAY TAG IMPACT ANALYSIS -->
+        <div class="print-card bg-white border border-slate-200 rounded-2xl shadow-card overflow-hidden">
+          <div class="px-4 sm:px-5 py-3.5 border-b border-slate-200">
+            <h3 class="text-sm font-extrabold text-slate-900">Delay Tag Impact Analysis</h3>
+            <p class="text-[11px] text-slate-500">Frequency of each flagged delay factor and average active turnaround compared against the overall average (${formatDuration(A.totalActiveStats.mean)})</p>
+          </div>
+          ${A.tagRows.length === 0 ? `
+            <div class="p-6 text-center text-xs text-slate-500">No delay tags have been logged in this date range.</div>
+          ` : `
+            <div class="print-table-wrap overflow-x-auto">
+              <table class="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr class="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase text-slate-500">
+                    <th class="py-2.5 px-4">Delay Tag</th>
+                    <th class="py-2.5 px-3 text-right">Frequency</th>
+                    <th class="py-2.5 px-3 text-right">Avg Total (Tag Present)</th>
+                    <th class="py-2.5 px-3 text-right">Overall Avg</th>
+                    <th class="py-2.5 px-4 text-right">Delta vs Overall</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  ${A.tagRows.map(t => {
+                    const deltaStr = t.deltaMs !== null
+                      ? `${t.deltaMs >= 0 ? "+" : "-"}${formatDuration(Math.abs(t.deltaMs))} (${t.deltaMs >= 0 ? "+" : "-"}${(Math.abs(t.deltaMs) / 60000).toFixed(2)}m)`
+                      : "—";
+                    const deltaCls = t.deltaMs > 0 ? "text-rose-700 font-bold" : "text-emerald-700 font-bold";
+                    return `
+                      <tr>
+                        <td class="py-2.5 px-4 font-bold text-slate-800">${escHtml(t.tag)}</td>
+                        <td class="py-2.5 px-3 text-right font-mono tabular-nums text-slate-700">${t.count} <span class="text-[10px] text-slate-400">(${t.pct.toFixed(1)}%)</span></td>
+                        <td class="py-2.5 px-3 text-right font-mono tabular-nums font-bold text-slate-900">${formatDuration(t.meanWithTag)}</td>
+                        <td class="py-2.5 px-3 text-right font-mono tabular-nums text-slate-500">${formatDuration(t.overallMean)}</td>
+                        <td class="py-2.5 px-4 text-right font-mono tabular-nums ${deltaCls}">${deltaStr}</td>
+                      </tr>
+                    `;
+                  }).join("")}
+                </tbody>
+              </table>
+            </div>
+          `}
+        </div>
+      `;
+    }
+
+    /* =======================================================================
+       11. EXPORT ENGINES (RAW CSV, SUMMARY STATS CSV, JSON BACKUP)
+       ======================================================================= */
+    function csvEscape(val) {
+      const s = val === null || val === undefined ? "" : String(val);
+      if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    }
+
+    function triggerDownload(filename, content, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function exportRawCsv() {
+      const records = getAuditFilteredRecords().sort((a, b) => (a.entry1 || 0) - (b.entry1 || 0));
+      if (records.length === 0) {
+        showToast("No records in selected range to export.", "warning");
+        return;
+      }
+      const turnover = computeTurnoverMetrics(records, state.breakCutoffMin);
+
+      const header = [
+        "Doc ID", "Room", "Clinic Date", "Patient #", "Status", "Visit Type", "Demo Data",
+        "Scan Types", "Delay Tags", "Notes",
+        "V1 Entry (Local)", "V1 Entry (ISO)", "V1 Scan Start (Local)", "V1 Scan End (Local)",
+        "Hold Started (Local)", "V2 Entry (Local)", "V2 Scan Start (Local)", "V2 Scan End (Local)",
+        "Report Printed (Local)", "Report Printed (ISO)",
+        "Prep (sec)", "Prep (min)", "Scan (sec)", "Scan (min)",
+        "Reporting (sec)", "Reporting (min)", "Total Active (sec)", "Total Active (min)",
+        "Post-Void Wait (min)", "Door-to-Door Turnover (min)", "Probe-to-Probe Gap (min)"
+      ];
+
+      const rows = [header];
+      records.forEach(rec => {
+        const m = computeRecordMetrics(rec);
+        const t = turnover.byRecordId[rec.id] || {};
+        rows.push([
+          rec.id, rec.roomId, rec.clinicDate, rec.patientNum, rec.status,
+          rec.isSplitVisit ? "Post-Void Split" : "Single",
+          rec.isDemo ? "Yes" : "No",
+          getDisplayScans(rec).join(" ; "),
+          rec.delayTags.join(" ; "),
+          rec.notes || "",
+          rec.entry1 ? formatClock(rec.entry1) : "", formatIso(rec.entry1),
+          rec.scanStart1 ? formatClock(rec.scanStart1) : "",
+          rec.scanEnd1 ? formatClock(rec.scanEnd1) : "",
+          rec.holdAt ? formatClock(rec.holdAt) : "",
+          rec.entry2 ? formatClock(rec.entry2) : "",
+          rec.scanStart2 ? formatClock(rec.scanStart2) : "",
+          rec.scanEnd2 ? formatClock(rec.scanEnd2) : "",
+          rec.reportPrinted ? formatClock(rec.reportPrinted) : "", formatIso(rec.reportPrinted),
+          msToCsvSec(m.prepMs), msToCsvMin(m.prepMs),
+          msToCsvSec(m.scanMs), msToCsvMin(m.scanMs),
+          msToCsvSec(m.reportMs), msToCsvMin(m.reportMs),
+          msToCsvSec(m.totalActiveMs), msToCsvMin(m.totalActiveMs),
+          msToCsvMin(m.waitGapMs),
+          msToCsvMin(t.doorTurnoverMs),
+          msToCsvMin(t.probeTurnoverMs)
+        ]);
+      });
+
+      const csv = "\uFEFF" + rows.map(r => r.map(csvEscape).join(",")).join("\r\n");
+      const safeRoom = state.roomId.replace(/[^A-Za-z0-9-_]/g, "_");
+      triggerDownload(`USS_Raw_${safeRoom}_${getLocalDateStr()}.csv`, csv, "text/csv;charset=utf-8;");
+      showToast("Exported Raw CSV (Excel ready)", "success");
+    }
+
+    function exportSummaryCsv() {
+      const records = getAuditFilteredRecords();
+      if (records.length === 0) {
+        showToast("No records in selected range to export.", "warning");
+        return;
+      }
+      const A = buildAuditAnalytics(records);
+
+      const rows = [
+        ["USS FLOW AUDIT — SUMMARY STATISTICS"],
+        ["Room Code", state.roomId],
+        ["Date Range", getAuditRangeLabel()],
+        ["Break Cutoff (min)", state.breakCutoffMin],
+        ["Manual Baseline (min)", state.manualBaselineMin],
+        ["Total Cases", A.totalCases, "Completed", A.completedCases, "Post-Void Split", A.splitCases],
+        [],
+        ["1. STAGE-BY-STAGE STATISTICS"],
+        ["Stage", "n", "Mean (mm:ss)", "Mean (min)", "Median (mm:ss)", "Median (min)", "Min (min)", "Max (min)", "Sample SD (min)"]
+      ];
+
+      A.stageRows.forEach(r => {
+        const s = r.stats;
+        rows.push([
+          r.label, s.n,
+          formatDuration(s.mean), msToCsvMin(s.mean),
+          formatDuration(s.median), msToCsvMin(s.median),
+          msToCsvMin(s.min), msToCsvMin(s.max), msToCsvMin(s.sd)
+        ]);
+      });
+
+      rows.push([], ["2. PER-SCAN-TYPE BREAKDOWN"]);
+      rows.push(["Scan Type", "Count", "Mean Prep (min)", "Mean Scan (min)", "Mean Report (min)", "Mean Total (min)", "Min Total (min)", "Max Total (min)", "Sample SD (min)"]);
+      A.scanRows.forEach(r => {
+        rows.push([
+          r.name, r.count,
+          msToCsvMin(r.prep.mean), msToCsvMin(r.scan.mean),
+          msToCsvMin(r.report.mean), msToCsvMin(r.total.mean),
+          msToCsvMin(r.total.min), msToCsvMin(r.total.max), msToCsvMin(r.total.sd)
+        ]);
+      });
+
+      if (A.tagRows.length > 0) {
+        rows.push([], ["3. DELAY TAG IMPACT ANALYSIS"]);
+        rows.push(["Delay Tag", "Count", "% of Cases", "Mean Active With Tag (min)", "Overall Mean Active (min)", "Delta vs Overall (min)"]);
+        A.tagRows.forEach(t => {
+          rows.push([
+            t.tag, t.count, `${t.pct.toFixed(1)}%`,
+            msToCsvMin(t.meanWithTag), msToCsvMin(t.overallMean),
+            t.deltaMs !== null ? (t.deltaMs / 60000).toFixed(2) : ""
+          ]);
+        });
+      }
+
+      const csv = "\uFEFF" + rows.map(r => r.map(csvEscape).join(",")).join("\r\n");
+      const safeRoom = state.roomId.replace(/[^A-Za-z0-9-_]/g, "_");
+      triggerDownload(`USS_Summary_${safeRoom}_${getLocalDateStr()}.csv`, csv, "text/csv;charset=utf-8;");
+      showToast("Exported Summary Stats CSV", "success");
+    }
+
+    function exportJsonBackup() {
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        projectId: firebaseConfig.projectId,
+        roomId: state.roomId,
+        count: state.records.length,
+        records: state.records
+      };
+      const safeRoom = state.roomId.replace(/[^A-Za-z0-9-_]/g, "_");
+      triggerDownload(`USS_Backup_${safeRoom}_${getLocalDateStr()}.json`, JSON.stringify(payload, null, 2), "application/json");
+      showToast(`Exported JSON backup (${state.records.length} docs)`, "success");
+    }
+
+    /* =======================================================================
+       12. EDIT RECORD MODAL LOGIC
+       ======================================================================= */
+    function openEditModal(recordId = null) {
+      const isNew = !recordId;
+      const now = Date.now();
+      const rec = isNew ? normalizeRecord({
+        id: "",
+        clinicDate: getLocalDateStr(),
+        patientNum: getNextPatientNumber(),
+        status: "completed",
+        scans: ["USS Abdomen"],
+        entry1: now - 7.5 * 60000,
+        scanStart1: now - 6 * 60000,
+        scanEnd1: now - 2.5 * 60000,
+        reportPrinted: now
+      }, "") : state.records.find(r => r.id === recordId);
+
+      if (!rec) return;
+
+      document.getElementById("edit-modal-heading").textContent = isNew ? "Add Manual Patient Entry" : `Edit Patient #${rec.patientNum}`;
+      document.getElementById("edit-record-id").value = rec.id;
+      document.getElementById("edit-clinic-date").value = rec.clinicDate;
+      document.getElementById("edit-patient-num").value = rec.patientNum;
+      document.getElementById("edit-status").value = rec.status;
+      document.getElementById("edit-other-scan").value = rec.otherScanText || "";
+      document.getElementById("edit-notes").value = rec.notes || "";
+
+      document.getElementById("edit-v1-entry").value = toTimeInputValue(rec.entry1);
+      document.getElementById("edit-v1-start").value = toTimeInputValue(rec.scanStart1);
+      document.getElementById("edit-v1-end").value = toTimeInputValue(rec.scanEnd1);
+
+      const splitCb = document.getElementById("edit-is-split");
+      splitCb.checked = !!rec.isSplitVisit;
+      document.getElementById("edit-v2-fields").classList.toggle("hidden", !rec.isSplitVisit);
+      document.getElementById("edit-v2-entry").value = toTimeInputValue(rec.entry2);
+      document.getElementById("edit-v2-start").value = toTimeInputValue(rec.scanStart2);
+      document.getElementById("edit-v2-end").value = toTimeInputValue(rec.scanEnd2);
+      document.getElementById("edit-report-printed").value = toTimeInputValue(rec.reportPrinted);
+
+      state.editDraftScans = new Set(rec.scans);
+      state.editDraftTags = new Set(rec.delayTags);
+      renderEditModalChips();
+
+      document.getElementById("btn-delete-in-edit").classList.toggle("hidden", isNew);
+      document.getElementById("modal-edit").classList.remove("hidden");
+    }
+
+    function renderEditModalChips() {
+      document.getElementById("edit-scans-chips").innerHTML = SCAN_TYPES.map(s => {
+        const active = state.editDraftScans.has(s);
+        return `<button type="button" data-edit-scan="${escHtml(s)}" class="px-2.5 py-1.5 rounded-lg text-xs font-bold border transition ${
+          active ? "bg-teal-600 text-white border-teal-600" : "bg-white text-slate-700 border-slate-200 hover:border-teal-400"
+        }">${escHtml(s)}</button>`;
+      }).join("");
+
+      document.getElementById("edit-other-scan").classList.toggle("hidden", !state.editDraftScans.has("Other"));
+
+      document.getElementById("edit-tags-chips").innerHTML = DELAY_TAGS.map(t => {
+        const active = state.editDraftTags.has(t);
+        return `<button type="button" data-edit-tag="${escHtml(t)}" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition ${
+          active ? "bg-rose-600 text-white border-rose-600" : "bg-slate-50 text-slate-600 border-slate-200 hover:border-rose-300"
+        }">${active ? "✓ " : "+ "}${escHtml(t)}</button>`;
+      }).join("");
+    }
+
+    async function handleSaveEditForm() {
+      const existingId = document.getElementById("edit-record-id").value;
+      const clinicDate = document.getElementById("edit-clinic-date").value || getLocalDateStr();
+      const patientNum = Math.max(1, parseInt(document.getElementById("edit-patient-num").value, 10) || 1);
+      const status = document.getElementById("edit-status").value;
+      const isSplitVisit = document.getElementById("edit-is-split").checked;
+
+      const entry1 = fromDateAndTimeInput(clinicDate, document.getElementById("edit-v1-entry").value);
+      const scanStart1 = fromDateAndTimeInput(clinicDate, document.getElementById("edit-v1-start").value);
+      const scanEnd1 = fromDateAndTimeInput(clinicDate, document.getElementById("edit-v1-end").value);
+      const entry2 = isSplitVisit ? fromDateAndTimeInput(clinicDate, document.getElementById("edit-v2-entry").value) : null;
+      const scanStart2 = isSplitVisit ? fromDateAndTimeInput(clinicDate, document.getElementById("edit-v2-start").value) : null;
+      const scanEnd2 = isSplitVisit ? fromDateAndTimeInput(clinicDate, document.getElementById("edit-v2-end").value) : null;
+      const reportPrinted = fromDateAndTimeInput(clinicDate, document.getElementById("edit-report-printed").value);
+
+      const existing = existingId ? state.records.find(r => r.id === existingId) : null;
+      const now = Date.now();
+      const docId = existingId || generatePatientDocId(clinicDate, patientNum, now);
+
+      await savePatientDoc({
+        id: docId,
+        roomId: state.roomId,
+        clinicDate,
+        patientNum,
+        scans: Array.from(state.editDraftScans),
+        otherScanText: document.getElementById("edit-other-scan").value.trim(),
+        delayTags: Array.from(state.editDraftTags),
+        notes: document.getElementById("edit-notes").value.trim(),
+        status,
+        isSplitVisit,
+        activeVisit: isSplitVisit && entry2 ? 2 : 1,
+        entry1, scanStart1, scanEnd1,
+        holdAt: isSplitVisit ? (existing?.holdAt || scanEnd1 || now) : null,
+        entry2, scanStart2, scanEnd2,
+        reportPrinted,
+        isDemo: existing ? existing.isDemo : false,
+        createdAt: existing?.createdAt || entry1 || now,
+        updatedAt: now
+      });
+
+      closeModal("modal-edit");
+      showToast(`Saved Patient #${patientNum}`, "success");
+    }
+
+    /* =======================================================================
+       13. 5-DAY DEMO DATA LOADER & SAFE CLEAR DEMO ONLY
+       ======================================================================= */
+    async function loadFiveDayDemoData() {
+      const templates = [
+        { scans: ["USS Abdomen"], prep: 1.3, scan: 3.1, rep: 3.0, split: true },
+        { scans: ["Breast & Bilateral Axilla"], prep: 2.0, scan: 4.4, rep: 3.5 },
+        { scans: ["USS Neck"], prep: 0.9, scan: 2.3, rep: 2.4 },
+        { scans: ["Carotid Doppler"], prep: 1.5, scan: 5.0, rep: 3.9 },
+        { scans: ["Venous Duplex"], prep: 2.1, scan: 5.6, rep: 4.1 },
+        { scans: ["Fetal Doppler"], prep: 1.4, scan: 3.7, rep: 3.1 },
+        { scans: ["Anomaly Scan"], prep: 1.5, scan: 6.5, rep: 4.3 },
+        { scans: ["Soft Tissue"], prep: 0.8, scan: 1.8, rep: 2.1 },
+        { scans: ["USS Abdomen", "Soft Tissue"], prep: 1.4, scan: 4.1, rep: 3.6 }
+      ];
+
+      const jitter = (base, pct = 0.22) => Math.max(0.4, base * (1 + (Math.random() * 2 - 1) * pct));
+      const docsToCreate = [];
+
+      for (let d = 4; d >= 0; d--) {
+        const dateStr = getOffsetDateStr(-d);
+        const [y, m, day] = dateStr.split("-").map(Number);
+        let cursor = new Date(y, m - 1, day, 8, 40, 0, 0).getTime();
+        const casesPerDay = 6 + (d % 3);
+        let ptNum = getNextPatientNumber(dateStr);
+
+        for (let i = 0; i < casesPerDay; i++) {
+          const tpl = templates[(i + d * 2) % templates.length];
+          const tags = [];
+          let extraDoor = jitter(1.1, 0.4);
+          let extraPrep = 0;
+          let extraRep = 0;
+
+          if (Math.random() < 0.25) { tags.push("Slow Bed Transfer"); extraDoor += 1.3; extraPrep += 0.8; }
+          if (Math.random() < 0.30) { tags.push("GEM / AI Lag"); extraRep += 1.2; }
+          if (Math.random() < 0.22) { tags.push("Waiting Radiologist"); extraRep += 1.5; }
+          if (Math.random() < 0.16) { tags.push("Word / VBA / Printer"); extraRep += 0.9; }
+
+          const entry1 = Math.round(cursor + extraDoor * 60000);
+          const scanStart1 = Math.round(entry1 + (jitter(tpl.prep) + extraPrep) * 60000);
+          const scanEnd1 = Math.round(scanStart1 + jitter(tpl.scan) * 60000);
+
+          const isSplit = !!tpl.split && (i % 3 === 0);
+          let holdAt = null, entry2 = null, scanStart2 = null, scanEnd2 = null;
+          let lastEnd = scanEnd1;
+
+          if (isSplit) {
+            holdAt = scanEnd1;
+            entry2 = scanEnd1 + Math.round((30 + Math.random() * 20) * 60000);
+            scanStart2 = entry2 + Math.round(jitter(1.0) * 60000);
+            scanEnd2 = scanStart2 + Math.round(jitter(1.5) * 60000);
+            lastEnd = scanEnd2;
+          }
+
+          const reportPrinted = Math.round(lastEnd + (jitter(tpl.rep) + extraRep) * 60000);
+          const id = `${dateStr.replace(/-/g, "")}_P${String(ptNum).padStart(3, "0")}_demo_${Math.random().toString(36).slice(2, 6)}`;
+
+          docsToCreate.push(normalizeRecord({
+            id,
+            roomId: state.roomId,
+            clinicDate: dateStr,
+            patientNum: ptNum,
+            scans: tpl.scans,
+            otherScanText: "",
+            delayTags: tags,
+            notes: isSplit ? "Pre-void and post-void bladder residual check" : "",
+            status: "completed",
+            isSplitVisit: isSplit,
+            activeVisit: isSplit ? 2 : 1,
+            entry1, scanStart1, scanEnd1,
+            holdAt, entry2, scanStart2, scanEnd2,
+            reportPrinted,
+            isDemo: true,
+            createdAt: entry1,
+            updatedAt: Date.now()
+          }, id));
+
+          cursor = scanEnd1;
+          ptNum++;
+        }
+      }
+
+      try {
+        const batch = writeBatch(db);
+        const colRef = getPatientsCollection(state.roomId);
+        docsToCreate.forEach(rec => {
+          batch.set(doc(colRef, rec.id), rec);
+        });
+        await batch.commit();
+        closeModal("modal-sync");
+        switchTab("audit");
+        showToast(`Loaded ${docsToCreate.length} demo cases across 5 days`, "success");
+      } catch (err) {
+        console.error("Demo batch write failed:", err);
+        state.syncMode = "error";
+        state.lastError = `${err.code || "batch-error"}: ${err.message || String(err)}`;
+        updateSyncStatusBadge();
+        showToast("Failed to write demo data to Firestore.", "error");
+      }
+    }
+
+    async function clearDemoDataOnly() {
+      const demoDocs = state.records.filter(r => r.isDemo === true);
+      if (demoDocs.length === 0) {
+        showToast("No demo records found in this room.", "info");
+        return;
+      }
+
+      try {
+        const colRef = getPatientsCollection(state.roomId);
+        // Firestore batch limit is 500 operations
+        for (let i = 0; i < demoDocs.length; i += 400) {
+          const chunk = demoDocs.slice(i, i + 400);
+          const batch = writeBatch(db);
+          chunk.forEach(r => batch.delete(doc(colRef, r.id)));
+          await batch.commit();
+        }
+        showToast(`Deleted ${demoDocs.length} demo records (real cases kept safe)`, "success");
+      } catch (err) {
+        console.error("Clear demo data failed:", err);
+        state.syncMode = "error";
+        state.lastError = `${err.code || "delete-error"}: ${err.message || String(err)}`;
+        updateSyncStatusBadge();
+        showToast("Failed to delete demo records.", "error");
+      }
+    }
+
+    /* =======================================================================
+       14. NAVIGATION & EVENT WIRING
+       ======================================================================= */
+    function switchTab(tabName) {
+      state.activeTab = tabName;
+      ["live", "log", "audit"].forEach(t => {
+        document.getElementById(`view-${t}`).classList.toggle("hidden", t !== tabName);
+      });
+
+      document.querySelectorAll(".nav-tab-btn").forEach(btn => {
+        const active = btn.dataset.tab === tabName;
+        btn.className = active
+          ? "nav-tab-btn min-h-[38px] px-4 py-1.5 rounded-lg text-xs font-extrabold bg-white text-teal-700 shadow-xs transition flex items-center gap-1.5"
+          : "nav-tab-btn min-h-[38px] px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition flex items-center gap-1.5";
+      });
+
+      document.querySelectorAll(".mobile-nav-btn").forEach(btn => {
+        const active = btn.dataset.tab === tabName;
+        btn.className = active
+          ? "mobile-nav-btn min-h-[48px] flex flex-col items-center justify-center py-1 rounded-xl text-[11px] font-extrabold text-teal-700 bg-teal-50 transition relative"
+          : "mobile-nav-btn min-h-[48px] flex flex-col items-center justify-center py-1 rounded-xl text-[11px] font-semibold text-slate-500 transition relative";
+      });
+
+      if (tabName === "log") renderLogTab();
+      if (tabName === "audit") renderAuditTab();
+    }
+
+    function bindEvents() {
+      // Online / Offline browser events
+      window.addEventListener("online", updateSyncStatusBadge);
+      window.addEventListener("offline", updateSyncStatusBadge);
+
+      // Navigation tabs
+      document.querySelectorAll("[data-tab]").forEach(btn => {
+        btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+      });
+
+      // Modal close buttons
+      document.querySelectorAll("[data-close-modal]").forEach(btn => {
+        btn.addEventListener("click", () => closeModal(btn.dataset.closeModal));
+      });
+
+      // Sync Modal
+      document.getElementById("btn-open-sync-modal").addEventListener("click", () => {
+        document.getElementById("input-room-code").value = state.roomId;
+        updateSyncStatusBadge();
+        document.getElementById("modal-sync").classList.remove("hidden");
+      });
+
+      document.getElementById("btn-save-room-code").addEventListener("click", () => {
+        const nextRoom = sanitizeRoomId(document.getElementById("input-room-code").value);
+        closeModal("modal-sync");
+        connectToRoom(nextRoom);
+        showToast(`Connected to room "${nextRoom}"`, "success");
+      });
+
+      // Copy room code using execCommand for broad mobile/iFrame support
+      document.getElementById("btn-copy-room-code").addEventListener("click", () => {
+        const code = sanitizeRoomId(document.getElementById("input-room-code").value);
+        const ta = document.createElement("textarea");
+        ta.value = code;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          document.execCommand("copy");
+          showToast(`Copied "${code}"`, "success");
+        } catch (_) {
+          showToast("Copy room code manually.", "warning");
+        }
+        document.body.removeChild(ta);
+      });
+
+      document.getElementById("btn-seed-demo").addEventListener("click", () => {
+        openConfirm(
+          "Load 5-Day Demo Data?",
+          `Adds ~35 realistic ultrasound audit records (marked isDemo: true) into "${state.roomId}". You can remove them anytime using "Clear Demo Data Only".`,
+          loadFiveDayDemoData,
+          "Load Demo Data"
+        );
+      });
+
+      document.getElementById("btn-clear-demo").addEventListener("click", () => {
+        const count = state.records.filter(r => r.isDemo).length;
+        if (count === 0) {
+          showToast("No demo data to clear.", "info");
+          return;
+        }
+        openConfirm(
+          `Clear ${count} Demo Records?`,
+          "Only sample records marked as demo data will be deleted from Firestore. All real patient timestamps remain untouched.",
+          clearDemoDataOnly,
+          "Clear Demo Only"
+        );
+      });
+
+      document.getElementById("btn-export-json").addEventListener("click", exportJsonBackup);
+
+      // Confirm modal
+      document.getElementById("btn-confirm-cancel").addEventListener("click", () => {
+        state.confirmCallback = null;
+        closeModal("modal-confirm");
+      });
+      document.getElementById("btn-confirm-ok").addEventListener("click", async () => {
+        const cb = state.confirmCallback;
+        state.confirmCallback = null;
+        closeModal("modal-confirm");
+        if (cb) await cb();
+      });
+
+      // Edit modal interactions
+      document.getElementById("edit-is-split").addEventListener("change", (e) => {
+        document.getElementById("edit-v2-fields").classList.toggle("hidden", !e.target.checked);
+      });
+
+      document.getElementById("edit-scans-chips").addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-edit-scan]");
+        if (!btn) return;
+        const s = btn.dataset.editScan;
+        if (state.editDraftScans.has(s)) state.editDraftScans.delete(s);
+        else state.editDraftScans.add(s);
+        renderEditModalChips();
+      });
+
+      document.getElementById("edit-tags-chips").addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-edit-tag]");
+        if (!btn) return;
+        const t = btn.dataset.editTag;
+        if (state.editDraftTags.has(t)) state.editDraftTags.delete(t);
+        else state.editDraftTags.add(t);
+        renderEditModalChips();
+      });
+
+      document.getElementById("btn-save-edit").addEventListener("click", handleSaveEditForm);
+
+      document.getElementById("btn-delete-in-edit").addEventListener("click", () => {
+        const id = document.getElementById("edit-record-id").value;
+        if (!id) return;
+        openConfirm(
+          "Delete Patient Record?",
+          "This permanently deletes the patient record from Firestore across all synced devices.",
+          async () => {
+            await deletePatientDoc(id);
+            closeModal("modal-edit");
+            showToast("Record deleted", "info");
+          },
+          "Delete"
+        );
+      });
+
+      // Log tab filters
+      document.getElementById("log-date-filter").addEventListener("change", (e) => {
+        state.logDateFilter = e.target.value;
+        const picker = document.getElementById("log-specific-date");
+        picker.classList.toggle("hidden", state.logDateFilter !== "custom");
+        if (state.logDateFilter === "custom" && !picker.value) {
+          picker.value = getLocalDateStr();
+          state.logSpecificDate = picker.value;
+        }
+        renderLogTab();
+      });
+
+      document.getElementById("log-specific-date").addEventListener("change", (e) => {
+        state.logSpecificDate = e.target.value;
+        renderLogTab();
+      });
+
+      document.getElementById("log-scan-filter").addEventListener("change", (e) => {
+        state.logScanFilter = e.target.value;
+        renderLogTab();
+      });
+
+      document.getElementById("log-tag-filter").addEventListener("change", (e) => {
+        state.logTagFilter = e.target.value;
+        renderLogTab();
+      });
+
+      document.getElementById("btn-manual-add-log").addEventListener("click", () => openEditModal(null));
+
+      // Audit tab controls
+      document.getElementById("audit-range-select").addEventListener("change", (e) => {
+        state.auditRange = e.target.value;
+        const customWrap = document.getElementById("audit-custom-dates");
+        customWrap.classList.toggle("hidden", state.auditRange !== "custom");
+        if (state.auditRange === "custom") {
+          const s = document.getElementById("audit-start-date");
+          const en = document.getElementById("audit-end-date");
+          if (!s.value) s.value = getOffsetDateStr(-6);
+          if (!en.value) en.value = getLocalDateStr();
+          state.auditStartDate = s.value;
+          state.auditEndDate = en.value;
+        }
+        renderAuditTab();
+      });
+
+      document.getElementById("audit-start-date").addEventListener("change", (e) => {
+        state.auditStartDate = e.target.value;
+        renderAuditTab();
+      });
+
+      document.getElementById("audit-end-date").addEventListener("change", (e) => {
+        state.auditEndDate = e.target.value;
+        renderAuditTab();
+      });
+
+      document.getElementById("audit-break-cutoff").addEventListener("change", (e) => {
+        const v = parseInt(e.target.value, 10);
+        state.breakCutoffMin = Number.isFinite(v) ? Math.min(180, Math.max(5, v)) : 20;
+        e.target.value = state.breakCutoffMin;
+        renderAll();
+      });
+
+      document.getElementById("audit-manual-baseline").addEventListener("change", (e) => {
+        const v = parseFloat(e.target.value);
+        state.manualBaselineMin = Number.isFinite(v) ? Math.min(30, Math.max(1, v)) : 5.5;
+        e.target.value = state.manualBaselineMin;
+        renderAll();
+      });
+
+      document.getElementById("btn-export-raw-csv").addEventListener("click", exportRawCsv);
+      document.getElementById("btn-export-summary-csv").addEventListener("click", exportSummaryCsv);
+      document.getElementById("btn-print-audit").addEventListener("click", () => {
+        renderAuditTab();
+        window.print();
+      });
+
+      // Delegated clicks for live & log cards
+      document.body.addEventListener("click", (e) => {
+        const el = e.target.closest("[data-action]");
+        if (!el) return;
+        const action = el.dataset.action;
+        const id = el.dataset.id;
+
+        if (action === "patient-entered") actionPatientEntered();
+        else if (action === "scan-start") actionScanStarted(id);
+        else if (action === "scan-end") actionScanEnded(id);
+        else if (action === "hold-post-void") actionHoldPostVoid(id);
+        else if (action === "resume-v2") actionResumeVisit2(id);
+        else if (action === "report-printed") actionReportPrinted(id);
+        else if (action === "toggle-scan") actionToggleScan(id, el.dataset.scan);
+        else if (action === "toggle-tag") actionToggleTag(id, el.dataset.tag);
+        else if (action === "undo-active") actionUndoActive(id);
+        else if (action === "edit-record") openEditModal(id);
+        else if (action === "delete-record") {
+          const rec = state.records.find(r => r.id === id);
+          openConfirm(
+            `Delete Patient #${rec?.patientNum || ""}?`,
+            "Remove this active patient record from Firestore?",
+            async () => {
+              await deletePatientDoc(id);
+              showToast("Deleted patient record", "info");
+            },
+            "Delete"
+          );
+        }
+      });
+
+      // Delegated input change for custom 'Other' scan text
+      document.body.addEventListener("change", (e) => {
+        const el = e.target.closest('[data-action="other-scan-input"]');
+        if (el) {
+          patchPatientDoc(el.dataset.id, { otherScanText: el.value.trim() });
+        }
+      });
+    }
+
+    /* =======================================================================
+       15. BOOT APPLICATION
+       ======================================================================= */
+    populateLogFilterDropdowns();
+    bindEvents();
+    switchTab("live");
+    setInterval(updateLiveTimers, 1000);
+
+    const savedRoom = readLS(LS_ROOM_KEY, DEFAULT_ROOM_CODE);
+    connectToRoom(savedRoom);
+  </script>
+</body>
+</html>
